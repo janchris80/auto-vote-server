@@ -42,4 +42,19 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
+
+    public function curations()
+    {
+        return $this->hasMany(Curation::class);
+    }
+
+    public function followers()
+    {
+        return $this->hasMany(Follower::class, 'follower_id');
+    }
+
+    public function followings()
+    {
+        return $this->hasMany(Follower::class, 'user_id');
+    }
 }

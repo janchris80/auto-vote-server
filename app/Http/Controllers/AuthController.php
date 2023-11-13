@@ -17,19 +17,23 @@ class AuthController extends Controller
     {
         $request->validated($request->all());
 
-
         $user = User::where('username', $request->username)->first();
 
         if (!$user) {
-            return $this->error('', 'Invalid Account', 401);
+            $user = User::create([
+                'username' => $request->username,
+            ]);
         }
 
         Auth::login($user);
 
         return $this->success([
-            'user' => $user,
+            'user' => [
+                'id' => (string)$user->id, // Cast the ID to a string
+                'username' => $user->username,
+            ],
             'token' => $user->createToken('API Token of ' . $user->username)->plainTextToken,
-        ]);
+        ], "Login Successfully.");
     }
 
     public function register(StoreUserRequest $request)
@@ -42,15 +46,15 @@ class AuthController extends Controller
 
         return $this->success([
             'user' => $user,
-            'token' => $user->createToken('API Token of ' . $user->username)->plainTextToken,
-        ]);
+            // 'token' => $user->createToken('API Token of ' . $user->username)->plainTextToken,
+        ], "Register Successfully");
     }
 
     public function logout()
     {
         Auth::user()->currentAccessToken()->delete();
 
-        return $this->success([], "You have successfully  been logged out and token has been deleted.");
+        return $this->success([], "You have successfully been logged out and token has been deleted.");
     }
 
     public function test()
