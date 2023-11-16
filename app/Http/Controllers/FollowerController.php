@@ -11,56 +11,22 @@ use App\Http\Requests\UpdateFollowerRequest;
 use App\Http\Resources\FollowingResource;
 use App\Http\Resources\PopularResource;
 use App\Models\User;
+use App\Traits\FollowerFunctionsTrait;
 use App\Traits\HttpResponses;
 
 class FollowerController extends Controller
 {
-    use HttpResponses;
+    use HttpResponses, FollowerFunctionsTrait;
 
     public function popular(PopularFollowerRequest $request)
     {
-        $request->validated();
-
-        $populars = User::query()
-            ->with([
-                'followings' => function ($query) use ($request) {
-                    $query->where('type', '=', $request->type);
-                }
-            ])
-            ->where('id', '!=', auth()->user()->id)
-            ->withCount(['followings as followings_count' => function ($query) use ($request) {
-                $query->where('type', $request->type);
-            }])
-            ->orderByDesc('followings_count')
-            ->paginate(10);
-
-        return PopularResource::collection($populars);
+        return $this->getPopular($request);
     }
 
 
     public function following(FollowingFollowerRequest $request)
     {
-        $request->validated();
-
-        $followings = User::query()
-            ->whereHas('followings', function ($query) use ($request) {
-                $query->where('type', $request->type)
-                    ->where('follower_id', auth()->user()->id);
-            })
-            ->with([
-                'followings' => function ($query) use ($request) {
-                    $query->where('type', $request->type)
-                        ->where('follower_id', auth()->user()->id);
-                }
-            ])
-            ->withCount(['followings as followers_count' => function ($query) use ($request) {
-                $query->where('type', $request->type)
-                    ->where('follower_id', auth()->user()->id);
-            }])
-            ->orderByDesc('followers_count')
-            ->paginate(10);
-
-        return FollowingResource::collection($followings);
+        return $this->getFollowing($request);
     }
 
 

@@ -7,9 +7,11 @@
     "require": {
         "php": "^8.0.2",
         "guzzlehttp/guzzle": "^7.2",
+        "hive/hive-php-lib": "^1.0",
         "laravel/framework": "^9.19",
         "laravel/sanctum": "^3.3",
-        "laravel/tinker": "^2.7"
+        "laravel/tinker": "^2.7",
+        "mahdiyari/hive-php": "^1.1"
     },
     "require-dev": {
         "fakerphp/faker": "^1.9.1",
