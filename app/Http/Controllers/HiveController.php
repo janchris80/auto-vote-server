@@ -229,10 +229,10 @@ class HiveController extends Controller
             "hiveNode" => "anyx.io",
         ];
 
-        $hiveApi = new HiveCondenser($config);
-        $result = $hiveApi->findProposal(211); // Will return data about the proposal 211
+        // $hiveApi = new HiveCondenser($config);
+        // $result = $hiveApi->findProposal(211); // Will return data about the proposal 211
 
-        return $result;
+        // return $result;
     }
 
     /**
@@ -273,7 +273,7 @@ class HiveController extends Controller
 
         // Handle the result as needed
         // if ($result['success']) {
-        return response()->json(['message' => 'Post successfully broadcasted', []]]);
+        return response()->json(['message' => 'Post successfully broadcasted', []]);
         // } else {
         //     return response()->json(['error' => 'Failed to broadcast post']);
         // }

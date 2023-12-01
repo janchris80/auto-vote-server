@@ -42,4 +42,77 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];
+
+    public function trailers()
+    {
+        return $this->hasMany(Trailer::class, 'user_id');
+    }
+
+    public function curationTrailer()
+    {
+        return $this->hasOne(Trailer::class, 'user_id')
+        ->where('type', '=', 'curation');
+    }
+
+    public function downvoteTrailer()
+    {
+        return $this->hasOne(Trailer::class, 'user_id')
+        ->where('type', '=', 'downvote');
+    }
+
+    public function followers()
+    {
+        return $this->hasMany(Follower::class, 'user_id');
+    }
+
+    public function follower()
+    {
+        return $this->hasOne(Follower::class, 'user_id');
+    }
+
+    public function followersCount()
+    {
+        return $this->hasMany(Follower::class, 'user_id')
+        ->selectRaw('user_id, count(*) as count')
+        ->groupBy('user_id');
+    }
+
+    public function followings()
+    {
+        return $this->hasMany(Follower::class, 'follower_id');
+    }
+
+    public function followingsCount()
+    {
+        return $this->hasMany(Follower::class, 'follower_id')
+        ->selectRaw('follower_id, count(*) as count')
+        ->groupBy('follower_id');
+    }
+
+    public function followingsCurationCount()
+    {
+        return $this->hasMany(Follower::class, 'follower_id')
+        ->where('follower_type', '=', 'curation')
+        ->selectRaw('follower_id, count(*) as count')
+        ->groupBy('follower_id');
+    }
+
+    public function followingsDownvoteCount()
+    {
+        return $this->hasMany(Follower::class, 'follower_id')
+        ->where('follower_type', '=', 'downvote')
+        ->selectRaw('follower_id, count(*) as count')
+        ->groupBy('follower_id');
+    }
+
+    public function getIsFollowedByCurrentUserAttribute()
+    {
+        if (auth()->check()) {
+            return Follower::where('user_id', $this->id)
+                ->where('follower_id', auth()->id())
+                ->exists();
+        }
+
+        return false;
+    }
 }

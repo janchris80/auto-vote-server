@@ -20,6 +20,7 @@ class UserResource extends JsonResource
             "limitPower" => $this->limit_power,
             "paused" => $this->paused,
             "enable" => $this->enable,
+            "claimReward" => $this->claim_reward,
             // "curation" => new TrailerResource($this->curationTrailer), // get the type of curation
             // "downvote" => new TrailerResource($this->downvoteTrailer), // get the type of downvote
             "authorizeAccount" => config('hive.account'),
