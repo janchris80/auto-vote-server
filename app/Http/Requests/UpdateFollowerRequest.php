@@ -24,7 +24,14 @@ class UpdateFollowerRequest extends FormRequest
     public function rules()
     {
         return [
-            //
+            'id' => ['required'],
+            'status' => ['required'], // enable
+            'method' => ['required'], // voting_type
+            'type' => ['required'], // follower_type
+            'weight' => ['required'], // weight
+            'waitTime' => ['required'], // after_min
+            'dailyLeft' => ['required'],
+            'limitLeft' => ['required'],
         ];
     }
 }

@@ -17,12 +17,17 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('user_id'); // user_id
             $table->unsignedBigInteger('follower_id'); // user_id
-            $table->string('type'); // ['curation', 'downvote', 'fanbase']
+            $table->string('voting_type')->default(null); // [fixed, scaled] for curation and downvote only
+            $table->string('follower_type'); // [curation, downvote, fanbase]
+            $table->integer('weight')->default(0);
+            $table->integer('after_min')->default(0); // upvoting after x minute
+            $table->integer('daily_limit')->default(5); // vote per day
+            $table->integer('limit_left')->default(5); // total vote per week
+            $table->boolean('enable')->default(true);
+            $table->timestamps();
 
             $table->foreign('follower_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
-
-            $table->timestamps();
         });
     }
 

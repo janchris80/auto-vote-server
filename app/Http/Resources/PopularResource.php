@@ -16,10 +16,11 @@ class PopularResource extends JsonResource
     {
         return [
             'id' => (string)$this->id,
-            'username' => $this->username,
+            'username' => $this->user->username,
             'description' => $this->description,
-            'followings_count' => $this->followings_count,
-            'followers' => FollowerResource::collection($this->followings),
+            'followersCount' => optional($this->user)->followers_count_count,
+            'isFollowed' => optional($this->user)->isFollowed,
+            // 'followers' => FollowerResource::collection($this->followings),
         ];
     }
 }

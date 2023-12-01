@@ -16,11 +16,11 @@ return new class extends Migration
         Schema::create('posts', function (Blueprint $table) {
             $table->id();
             $table->mediumText('user');
-            $table->text('title');
+            $table->string('title', 255);
             $table->mediumText('content');
             $table->bigInteger('date')->nullable();
-            $table->text('maintag');
-            $table->text('json');
+            $table->string('maintag', 255)->nullable();
+            $table->text('json')->nullable();
             $table->mediumText('permlink');
             $table->integer('status')->default(0);
             $table->integer('upvote')->default(0);
@@ -29,8 +29,6 @@ return new class extends Migration
 
             $table->index('date');
             $table->index('status');
-            $table->fulltext('user');
-            $table->fulltext('permlink');
         });
     }
 

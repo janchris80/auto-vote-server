@@ -10,23 +10,24 @@ class Follower extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id', // user_id of who follow
-        'follower_id', // user_id
-        'type', // ['curation', 'downvote', 'fanbase']
+        'user_id',
+        'follower_id',
+        'voting_type', // scaled, fixed = method
+        'follower_type', // curation, downvote, fanbase
+        'weight',
+        'after_min',
+        'daily_limit',
+        'limit_left',
+        'enable',
     ];
 
-    public function follower()
-    {
-        return $this->belongsTo(User::class, 'follower_id');
-    }
-
-    public function following()
+    public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    public function followers()
+    public function follower()
     {
-        return $this->belongsToMany(User::class, 'followers', 'user_id', 'follower_id');
+        return $this->belongsTo(User::class, 'follower_id');
     }
 }

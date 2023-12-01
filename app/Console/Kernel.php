@@ -16,7 +16,8 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         // $schedule->command('inspire')->hourly();
-        $schedule->command('publish:post')->everyMinute();
+        // $schedule->command('broadcast:vote')->everyMinute();
+        $schedule->command('broadcast:claim-rewards')->everyMinute();
     }
 
     /**

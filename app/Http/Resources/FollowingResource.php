@@ -15,13 +15,13 @@ class FollowingResource extends JsonResource
     public function toArray($request)
     {
         return [
-            "id" => (string)$this->id,
-            "username" => $this->username,
-            "followers_count"=> $this->followers_count,
-            "weight" => 50,
-            "method" => 'Scale',
-            "wait_time" => 0,
-            "status" => false,
+            "id" => $this->id,
+            "username" => $this->user->username,
+            "followersCount"=> $this->user->followersCount()->count(),
+            'weight' => $this->user->follower->weight,
+            'method' => $this->user->follower->voting_type,
+            'waitTime' => $this->user->follower->after_min,
+            'status' => $this->user->follower->enable,
         ];
     }
 }

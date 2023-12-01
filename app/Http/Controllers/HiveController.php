@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\BroadcastVoteRequest;
 use App\Http\Requests\SearchUsernameRequest;
 use App\Models\User;
 use App\Traits\HttpResponses;
@@ -14,6 +15,14 @@ use Hive\PhpLib\Hive\Condenser as HiveCondenser;
 class HiveController extends Controller
 {
     use HttpResponses;
+    private $postingPrivateKey;
+    private $hive;
+
+    public function __construct()
+    {
+        $this->hive = new Hive();
+        $this->postingPrivateKey = $this->hive->privateKeyFrom(config('hive.private_key.posting'));
+    }
 
     public function hive()
     {
@@ -107,26 +116,77 @@ class HiveController extends Controller
 
     public function accountHistory()
     {
-        $response = Http::post('https://rpc.d.buzz/', [
+        $accountWatcher = 'dbuzz';
+        $accountHistories = Http::post('https://rpc.d.buzz/', [
             'jsonrpc' => '2.0',
             'method' => 'condenser_api.get_account_history',
-            'params' => ['dbuzz', -1, 100],
+            'params' => [$accountWatcher, -1, 100],
             'id' => 1,
-        ]);
+        ])->json()['result'] ?? [];
 
-        return $response->json();
+        $data = [];
+        $lastProcessedTxId = -1;
+
+        $voteOps = collect($accountHistories)
+            ->filter(function ($tx) use ($lastProcessedTxId) {
+                return $tx[0] > $lastProcessedTxId;
+            })
+            ->map(function ($tx) use (&$lastProcessedTxId) {
+                $lastProcessedTxId = $tx[0];
+                return $tx[1]['op'];
+            })
+            ->filter(function($op) use ($accountWatcher) {
+                return $op[0] === 'vote' && $op[1]['voter'] === $accountWatcher;
+            });
+
+
+        // return $voteOps;
+        foreach ($voteOps as $voteOp) {
+            $postAuthor = $voteOp[1]['author'];
+            $postPermlink = $voteOp[1]['permlink'];
+            $weight = $voteOp[1]['weight'];
+
+            $activeVotes = Http::post('https://rpc.d.buzz/', [
+                'jsonrpc' => '2.0',
+                'method' => 'condenser_api.get_active_votes',
+                'params' => [$postAuthor, $postPermlink],
+                'id' => 1,
+            ])->json()['result'] ?? [];
+
+            $votes = collect($activeVotes)
+                ->contains(function ($vote) {
+                    return $vote['voter'] === 'iamjco';
+                });
+
+            if (!$votes) {
+                // vote function
+            }
+
+            $data[] = $votes;
+        }
+
+        return $data;
     }
 
     public function votes()
     {
-        $response = Http::post('https://rpc.d.buzz/', [
-            'jsonrpc' => '2.0',
-            'method' => 'condenser_api.get_active_votes',
-            'params' => ['lindarey', '47g3iyz3s2v2131vy2anw6'],
-            'id' => 1,
+        // $response = Http::post('https://rpc.d.buzz/', [
+        //     'jsonrpc' => '2.0',
+        //     'method' => 'condenser_api.get_active_votes',
+        //     'params' => ['lindarey', '47g3iyz3s2v2131vy2anw6'],
+        //     'id' => 1,
+        // ]);
+
+        // return $response->json();
+
+        $broadcast = $this->hive->broadcast($this->postingPrivateKey, 'vote', [
+            'iamjco', // voter
+            'dbuzz', // author
+            'rtp2ok1xh1fynvktczma7', // permalink
+            5000 // weight
         ]);
 
-        return $response->json();
+        return $broadcast;
     }
 
     public function searchAccount(SearchUsernameRequest $request)
@@ -209,42 +269,46 @@ class HiveController extends Controller
         // Use the Hive PHP library to submit the signed transaction
         $hive = new Hive();
         // $result = $hive->("5d7e8fbdc6a30f5ff54e25330c3bce2a0525bea0")->confirmed;
-        $result = $hive->broadcast('5Ji9X9tD2BXYesYz6PJAGZX1AERNHu4j4951Z91HFJHiYcwDcei', 'comment')
+        // $result = $hive->broadcast('5Ji9X9tD2BXYesYz6PJAGZX1AERNHu4j4951Z91HFJHiYcwDcei', 'comment');
 
         // Handle the result as needed
         // if ($result['success']) {
-            return response()->json(['message' => 'Post successfully broadcasted', $result]);
+        return response()->json(['message' => 'Post successfully broadcasted', []]]);
         // } else {
         //     return response()->json(['error' => 'Failed to broadcast post']);
         // }
     }
 
-    /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function show($id)
+    public function broadcastTransaction(Request $request)
     {
-        //
+        // The signed transaction data received from the client-side JavaScript
+        $signedTransaction = $request->input('signed_transaction'); // Adjust this based on your actual implementation
 
-    }
+        try {
+            // Hive API endpoint
+            $apiEndpoint = 'https://api.hive.blog';
 
+            // Make a POST request to broadcast the signed transaction
+            $response = Http::post($apiEndpoint . '/rpc', [
+                'jsonrpc' => '2.0',
+                'id' => 1,
+                'method' => 'condenser_api.broadcast_transaction',
+                'params' => [$signedTransaction],
+            ]);
 
-    public function update(Request $request, $id)
-    {
-        //
-    }
+            // Check the response
+            $responseData = $response->json();
 
-    /**
-     * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function destroy($id)
-    {
-        //
+            if (!empty($responseData['result'])) {
+                // Transaction successfully broadcasted
+                return response()->json(['success' => true, 'message' => 'Transaction successfully broadcasted']);
+            } else {
+                // Error broadcasting the transaction
+                return response()->json(['success' => false, 'message' => 'Error broadcasting transaction']);
+            }
+        } catch (\Exception $e) {
+            // Handle exceptions
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        }
     }
 }

@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CurationController;
 use App\Http\Controllers\FollowerController;
 use App\Http\Controllers\HiveController;
+use App\Http\Controllers\TrailerController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -13,9 +14,8 @@ Route::post('/register', [AuthController::class, 'register']);
 
 // protected route
 Route::group(['middleware' => ['auth:sanctum']], function () {
-    Route::get('/user', function() {
-        return auth()->user();
-    });
+    Route::get('/user', [AuthController::class, 'user']);
+    Route::post('/enable', [AuthController::class, 'updateEnable']);
 
     Route::post('/logout', [AuthController::class, 'logout']);
 
@@ -28,6 +28,12 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::post('/following', [FollowerController::class, 'following']);
     Route::post('/followers/follow', [FollowerController::class, 'follow']);
     Route::post('/followers/unfollow', [FollowerController::class, 'unfollow']);
+
+    Route::post('/trailers/get', [TrailerController::class, 'index']);
+    Route::post('/trailers', [TrailerController::class, 'store']);
+    Route::put('/trailers', [TrailerController::class, 'update']);
+
+    Route::put('/follower/update', [FollowerController::class, 'updateFollower']);
 
     Route::apiResource('/curations', CurationController::class);
     Route::apiResource('/followers', FollowerController::class);
