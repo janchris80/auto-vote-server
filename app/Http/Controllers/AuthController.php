@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Traits\HttpResponses;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\StoreUserRequest;
+use App\Http\Requests\UpdateUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
@@ -16,7 +17,7 @@ class AuthController extends Controller
 
     public function login(LoginRequest $request)
     {
-        $request->validated($request->all());
+        $request->validated();
 
         $user = User::where('username', $request->username)
             ->with('trailers')
@@ -38,7 +39,7 @@ class AuthController extends Controller
 
     public function register(StoreUserRequest $request)
     {
-        $request->validated($request->all());
+        $request->validated();
 
         $user = User::create([
             'username' => $request->username,
@@ -72,5 +73,24 @@ class AuthController extends Controller
 
         // Update the 'enable' column
         $user->update(['enable' => !$user->enable]);
+    }
+
+    public function update(UpdateUserRequest $request)
+    {
+        $request->validated();
+        // Find the current authenticated user
+        $userId = auth()->id();
+        $user = User::find($userId);
+
+        $currentPower = floatval($request->current_power);
+        $limitPower = floatval($request->limit_power);
+
+        $user->current_power = $currentPower;
+        $user->limit_power = $limitPower;
+        $user->paused = $request->paused ? 1 : 0;
+
+        $user->save();
+
+        return $this->success(new UserResource($user));
     }
 }

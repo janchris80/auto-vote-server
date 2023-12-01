@@ -27,9 +27,13 @@ class Vote extends Command
         $postingPrivateKey = $this->hive->privateKeyFrom(config('hive.private_key.posting'));
 
         Follower::query()
-            ->with('user', 'follower')
+            ->whereHas('follower', function($query) {
+                $query->where('enable', 1);
+            })
+            ->with(['user', 'follower'])
             ->where('enable', '=', 1)
             ->chunk(200, function ($follower) use ($postingPrivateKey) {
+                // dump($follower->toArray());
                 $this->broadcastVotes($follower, $postingPrivateKey);
             });
 
@@ -37,7 +41,7 @@ class Vote extends Command
         $duration = $endTime - $startTime; // Calculate duration
 
         Log::info("Total time taken: {$duration} seconds");
-        echo "Total time taken: {$duration} seconds\n"; // Output the duration
+        $this->info("Total time taken: {$duration} seconds"); // Output the duration
     }
 
     protected function broadcastVotes($votes, $postingPrivateKey)
@@ -46,12 +50,13 @@ class Vote extends Command
             $currentDateTime = Carbon::now('Asia/Manila');
             $newDateTime = $currentDateTime->addMinutes(70);
             $formattedTime = $newDateTime->format('Y-m-d H:i:s');
+            $lastProcessedTxId = -1;
+            $data = [];
 
             $username = $vote->follower->username;
             $accountWatcher = $vote->user->username;
             $method = $vote->voting_type;
             $userWeight = $vote->weigth;
-            
 
             $startTimeget_account_history = microtime(true); // Start timer
             $accountHistories = Http::post('https://rpc.d.buzz/', [
@@ -66,8 +71,6 @@ class Vote extends Command
             Log::info("Total startTimeget_account_history taken: {$durationget_account_history} seconds.");
             dump("Total startTimeget_account_history taken: {$durationget_account_history} seconds. $startTimeget_account_history - $entTimeget_account_history");
 
-            $lastProcessedTxId = -1;
-
             $voteOps = collect($accountHistories)
                 ->filter(function ($tx) use ($lastProcessedTxId) {
                     return $tx[0] > $lastProcessedTxId;
@@ -76,8 +79,8 @@ class Vote extends Command
                     $lastProcessedTxId = $tx[0];
                     return $tx[1]['op'];
                 })
-                ->filter(function ($op) use ($accountWatcher) {
-                    return $op[0] === 'vote' && $op[1]['voter'] === $accountWatcher;
+                ->filter(function ($op) use ($username) {
+                    return $op[0] === 'vote' && $op[1]['voter'] === $username;
                 });
 
 
@@ -120,10 +123,9 @@ class Vote extends Command
                 }
             }
 
-            dump('total accountHistories: ' . count($accountHistories));
-            dump('total voteOps: ' . count($voteOps));
-            dump('total votes: ' . count($data) );
-
+            $this->info('total accountHistories: ' . count($accountHistories));
+            $this->info('total voteOps: ' . count($voteOps));
+            $this->info('total votes: ' . count($data));
         });
     }
 
