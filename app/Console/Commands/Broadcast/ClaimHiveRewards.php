@@ -1,12 +1,13 @@
 <?php
 
-namespace App\Console\Commands\Hive;
+namespace App\Console\Commands\Broadcast;
 
 use App\Models\User;
 use Hive\Helpers\PrivateKey;
 use Hive\Hive;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class ClaimHiveRewards extends Command
 {
@@ -45,28 +46,34 @@ class ClaimHiveRewards extends Command
                     'params' => [[$username]],
                     'id' => 1,
                 ])->json()['result'][0] ?? [];
-                // $account = $hive->call('condenser_api', 'get_accounts', [[$username]]);
-                // dump($account);
-                $rewardHive = $account['reward_hive_balance'];
-                $rewardHbd = $account['reward_hbd_balance'];
-                $rewardVests = $account['reward_vesting_balance'];
 
-                if ($rewardHive === '0.000 HIVE' && $rewardHbd === '0.000 HBD' && $rewardVests === '0.000000 VESTS') {
-                    $this->info('No rewards to claim for ' . $username);
-                    return;
+                if (!empty($account)) {
+                    $rewardHive = $account['reward_hive_balance'];
+                    $rewardHbd = $account['reward_hbd_balance'];
+                    $rewardVests = $account['reward_vesting_balance'];
+
+                    if ($rewardHive === '0.000 HIVE' && $rewardHbd === '0.000 HBD' && $rewardVests === '0.000000 VESTS') {
+                        $this->info('No rewards to claim for ' . $username);
+                        Log::info('No rewards to claim for ' . $username);
+                        return;
+                    }
+
+                    $opParams = [
+                        'account' => $username,
+                        'reward_hive' => $rewardHive,
+                        'reward_hbd' => $rewardHbd,
+                        'reward_vests' => $rewardVests
+                    ];
+
+                    $hive->broadcast($postingPrivateKey, 'claim_reward_balance', array_values($opParams));
                 }
 
-                $opParams = [
-                    'account' => $username,
-                    'reward_hive' => $rewardHive,
-                    'reward_hbd' => $rewardHbd,
-                    'reward_vests' => $rewardVests
-                ];
 
-                $hive->broadcast($postingPrivateKey, 'claim_reward_balance', array_values($opParams));
                 $this->info('Rewards claimed successfully for ' . $username);
+                Log::info('Rewards claimed successfully for ' . $username);
             } catch (\Exception $e) {
                 $this->error('Error claiming rewards: ' . $e->getMessage());
+                Log::info('Error claiming rewards: ' . $e->getMessage());
             }
         });
     }
