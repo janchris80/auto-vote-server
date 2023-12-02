@@ -100,7 +100,10 @@ trait FollowerFunctionsTrait
                     ->where('follower_type', $type);
             })
             ->with([
-                'user.follower',
+                'user.follower' => function ($query) use ($userId, $type) {
+                    $query->where('follower_id', $userId)
+                        ->where('follower_type', $type);
+                },
             ])
             ->paginate(10);
 
