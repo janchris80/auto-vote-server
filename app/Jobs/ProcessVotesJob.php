@@ -183,7 +183,7 @@ class ProcessVotesJob implements ShouldQueue
                     $accountHistories = $this->makeHttpRequest([
                         'jsonrpc' => '2.0',
                         'method' => 'condenser_api.get_account_history',
-                        'params' => [$accountWatcher, -1, 50], //
+                        'params' => [$accountWatcher, -1, 100], //
                         'id' => 1,
                     ]);
 
