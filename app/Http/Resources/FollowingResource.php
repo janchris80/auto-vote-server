@@ -15,8 +15,9 @@ class FollowingResource extends JsonResource
     public function toArray($request)
     {
         return [
-            "id" => $this->id,
+            "id" => $this->user->follower->id,
             "username" => $this->user->username,
+            "userId" => $this->user->id,
             "followersCount"=> $this->user->followersCount()->count(),
             'weight' => $this->user->follower->weight,
             'method' => $this->user->follower->voting_type,

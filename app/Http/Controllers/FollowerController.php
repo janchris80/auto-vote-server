@@ -71,7 +71,9 @@ class FollowerController extends Controller
         $model = Follower::create([
             "user_id" => $request->user_id,
             "follower_id" => auth()->id(),
-            "type" => $request->type,
+            "follower_type" => $request->type,
+            "voting_type" => 'scaled',
+            "enable" => false,
         ]);
 
         return $this->success($model, 'Successfully Followed.');
@@ -82,7 +84,7 @@ class FollowerController extends Controller
         $request->validated();
         $model = Follower::where("user_id", "=", $request->user_id)
             ->where("follower_id", auth()->id())
-            ->where("type", "=", $request->type)
+            ->where("follower_type", "=", $request->type)
             ->delete();
 
         return $this->success($model, 'Successfully Unfollow.');

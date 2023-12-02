@@ -27,6 +27,7 @@ return new class extends Migration
             $table->float('limit_power')->default(70);
             $table->float('sp')->default(1000);
             $table->integer('paused')->nullable();
+            $table->text('discord_webhook_url');
 
             $table->rememberToken();
             $table->timestamps();

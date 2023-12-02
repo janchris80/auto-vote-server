@@ -24,6 +24,7 @@ return new class extends Migration
             $table->integer('daily_limit')->default(5); // vote per day
             $table->integer('limit_left')->default(5); // total vote per week
             $table->boolean('enable')->default(true);
+            $table->boolean('is_being_processed')->default(false);
             $table->timestamps();
 
             $table->foreign('follower_id')->references('id')->on('users')->onDelete('cascade');

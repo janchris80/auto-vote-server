@@ -18,9 +18,17 @@ class User extends Authenticatable
      * @var array<int, string>
      */
     protected $fillable = [
-        'name',
+        'username',
         'email',
         'password',
+        'enable',
+        'added',
+        'claim_reward',
+        'current_power',
+        'limit_power',
+        'sp',
+        'paused',
+        'discord_webhook_url',
     ];
 
     /**
@@ -51,13 +59,13 @@ class User extends Authenticatable
     public function curationTrailer()
     {
         return $this->hasOne(Trailer::class, 'user_id')
-        ->where('type', '=', 'curation');
+            ->where('type', '=', 'curation');
     }
 
     public function downvoteTrailer()
     {
         return $this->hasOne(Trailer::class, 'user_id')
-        ->where('type', '=', 'downvote');
+            ->where('type', '=', 'downvote');
     }
 
     public function followers()
@@ -73,8 +81,8 @@ class User extends Authenticatable
     public function followersCount()
     {
         return $this->hasMany(Follower::class, 'user_id')
-        ->selectRaw('user_id, count(*) as count')
-        ->groupBy('user_id');
+            ->selectRaw('user_id, count(*) as count')
+            ->groupBy('user_id');
     }
 
     public function followings()
@@ -85,24 +93,24 @@ class User extends Authenticatable
     public function followingsCount()
     {
         return $this->hasMany(Follower::class, 'follower_id')
-        ->selectRaw('follower_id, count(*) as count')
-        ->groupBy('follower_id');
+            ->selectRaw('follower_id, count(*) as count')
+            ->groupBy('follower_id');
     }
 
     public function followingsCurationCount()
     {
         return $this->hasMany(Follower::class, 'follower_id')
-        ->where('follower_type', '=', 'curation')
-        ->selectRaw('follower_id, count(*) as count')
-        ->groupBy('follower_id');
+            ->where('follower_type', '=', 'curation')
+            ->selectRaw('follower_id, count(*) as count')
+            ->groupBy('follower_id');
     }
 
     public function followingsDownvoteCount()
     {
         return $this->hasMany(Follower::class, 'follower_id')
-        ->where('follower_type', '=', 'downvote')
-        ->selectRaw('follower_id, count(*) as count')
-        ->groupBy('follower_id');
+            ->where('follower_type', '=', 'downvote')
+            ->selectRaw('follower_id, count(*) as count')
+            ->groupBy('follower_id');
     }
 
     public function getIsFollowedByCurrentUserAttribute()

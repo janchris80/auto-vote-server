@@ -135,7 +135,7 @@ class HiveController extends Controller
                 $lastProcessedTxId = $tx[0];
                 return $tx[1]['op'];
             })
-            ->filter(function($op) use ($accountWatcher) {
+            ->filter(function ($op) use ($accountWatcher) {
                 return $op[0] === 'vote' && $op[1]['voter'] === $accountWatcher;
             });
 
@@ -194,21 +194,25 @@ class HiveController extends Controller
         $request->validated();
 
         $username = $request->username;
-        // $response = Http::post('https://rpc.d.buzz/', [
-        //     'jsonrpc' => '2.0',
-        //     'method' => 'condenser_api.get_accounts',
-        //     'params' => [[$request->username]],
-        //     'id' => 1,
-        // ]);
+        $response = Http::post('https://rpc.d.buzz/', [
+            'jsonrpc' => '2.0',
+            'method' => 'condenser_api.get_accounts',
+            'params' => [[$request->username]],
+            'id' => 1,
+        ]);
 
-        $response = Http::get("https://hive.blog/@$username.json");
+        // $response = Http::get("https://hive.blog/@$username.json");
 
-        $data = $response->json()['user'];
+        $data['hive_user'] = $response->json()['result'][0] ?? [];
 
-        if ($data !== 'No account found') {
-            $user = User::updateOrCreate([
-                'username' => $username,
-            ]);
+        if (!empty($data)) {
+            $user = User::query()
+                ->with(['followers', 'curationTrailer', 'downvoteTrailer', 'followingsCurationCount', 'followingsDownvoteCount', 'followersCount'])
+                ->updateOrCreate([
+                    'username' => $username,
+                ]);
+
+            $data['user'] = $user;
         }
 
         return $this->success($data);

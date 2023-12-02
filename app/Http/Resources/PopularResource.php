@@ -17,6 +17,7 @@ class PopularResource extends JsonResource
         return [
             'id' => (string)$this->id,
             'username' => $this->user->username,
+            'userId' => $this->user->id,
             'description' => $this->description,
             'followersCount' => optional($this->user)->followers_count_count,
             'isFollowed' => optional($this->user)->isFollowed,
