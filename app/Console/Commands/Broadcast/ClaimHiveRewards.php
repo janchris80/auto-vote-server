@@ -23,21 +23,16 @@ class ClaimHiveRewards extends Command
 
     public function handle()
     {
-        $startTime = microtime(true); // Start timer
+
         $postingKey = config('hive.private_key.posting'); // Be cautious with private keys
         $postingPrivateKey = new PrivateKey($postingKey);
 
-        $user = User::query()
+        User::query()
             ->where('claim_reward', 1)
             ->where('enable', 1)
             ->chunk(100, function ($followers) use ($postingPrivateKey) {
                 // $this->broadcastClaimReward($followers, $postingPrivateKey);
                 ProcessClaimRewardsJob::dispatch($followers, $postingPrivateKey, $this->hive);
             });
-
-        $endTime = microtime(true); // End timer
-        $duration = $endTime - $startTime; // Calculate duration
-
-        Log::info("Total time taken: {$duration} seconds\n");
     }
 }
