@@ -22,7 +22,6 @@ class Vote extends Command
 
     public function handle()
     {
-        $startTime = microtime(true); // Start timer
         $postingPrivateKey = $this->hive->privateKeyFrom(config('hive.private_key.posting'));
         Follower::query()
             ->whereHas('follower', function ($query) {
@@ -36,10 +35,5 @@ class Vote extends Command
                 // $this->broadcastVotes($follower, $postingPrivateKey);
                 ProcessVotesJob::dispatch($followers, $postingPrivateKey, $this->hive);
             });
-
-        $endTime = microtime(true); // End timer
-        $duration = $endTime - $startTime; // Calculate duration
-
-        Log::info("Total time taken: {$duration} seconds");
     }
 }
