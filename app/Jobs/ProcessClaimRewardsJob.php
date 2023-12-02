@@ -36,6 +36,7 @@ class ProcessClaimRewardsJob implements ShouldQueue
      */
     public function handle(): void
     {
+        $startTime = microtime(true); // Start timer
         Log::info("Starting ProcessClaimRewardsJob for followers chunk: " . count($this->followers));
         // broadcastClaimReward logic here
         foreach ($this->followers as $follower) {
@@ -49,6 +50,11 @@ class ProcessClaimRewardsJob implements ShouldQueue
         }
 
         Log::info("Job ProcessClaimRewardsJob successfully");
+
+        $endTime = microtime(true); // End timer
+        $duration = $endTime - $startTime; // Calculate duration
+
+        Log::info("Total time taken: {$duration} seconds\n");
     }
 
     protected function broadcastClaimReward($follower)
