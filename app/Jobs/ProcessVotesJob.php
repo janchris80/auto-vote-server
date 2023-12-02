@@ -36,6 +36,7 @@ class ProcessVotesJob implements ShouldQueue
 
     public function handle()
     {
+        $startTime = microtime(true); // Start timer
         Log::info("Starting ProcessVotesJob for followers chunk: " . count($this->followers));
         // broadcastVotes logic here
         foreach ($this->followers as $follower) {
@@ -66,6 +67,10 @@ class ProcessVotesJob implements ShouldQueue
             });
         };
         Log::info("ProcessVotesJob completed successfully");
+        $endTime = microtime(true); // End timer
+        $duration = $endTime - $startTime; // Calculate duration
+
+        Log::info("Total time taken: {$duration} seconds");
     }
 
     protected function canMakeRequest()
@@ -229,7 +234,7 @@ class ProcessVotesJob implements ShouldQueue
 
                             if (!$votes) {
                                 $data[] = $vote;
-                                // $this->broadcastVote((object)$vote, $this->postingPrivateKey);
+                                $this->broadcastVote((object)$vote, $this->postingPrivateKey);
                             }
                             // Cache the timestamp of the request
                             Cache::put('last_api_request_time.condenser_api.get_active_votes', now(), 60); // 180 seconds cooldown = 3 minutes
@@ -255,7 +260,7 @@ class ProcessVotesJob implements ShouldQueue
             $countVoteOps = count($voteOps ?? []);
             $countData = count($data ?? []);
 
-            if ($discordWebhookUrl) {
+            if ($discordWebhookUrl && $countData) {
                 $logMessages = <<<LOG
                 ----------------------------------------------------------
                 LOG;
