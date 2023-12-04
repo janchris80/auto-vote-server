@@ -16,6 +16,13 @@ class UpdateFollowerRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation()
+    {
+        $this->merge([
+            'votingType' => strtolower($this->input('votingType')),
+        ]);
+    }
+
     /**
      * Get the validation rules that apply to the request.
      *
@@ -25,12 +32,12 @@ class UpdateFollowerRequest extends FormRequest
     {
         return [
             'id' => ['required'],
-            'status' => ['required'], // enable
-            'method' => ['required'], // voting_type
-            'type' => ['required'], // follower_type
+            'isEnable' => ['required', 'boolean'], // enable
+            'votingType' => ['required', 'in:scaled,fixed'], // voting_type
+            'type' => ['required', 'in:fanbase,curation,downvote'], // follower_type
             'weight' => ['required'], // weight
-            'waitTime' => ['required'], // after_min
-            'dailyLeft' => ['required'],
+            'afterMin' => ['required'], // after_min
+            'dailyLimit' => ['required'],
             'limitLeft' => ['required'],
         ];
     }

@@ -24,7 +24,7 @@ class StoreFollowerRequest extends FormRequest
     public function rules()
     {
         return [
-            'user_id' => ['required'],
+            'userId' => ['required'],
             'type' => ['required', 'in:fanbase,curation,downvote'],
         ];
     }

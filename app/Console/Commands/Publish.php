@@ -13,7 +13,7 @@ class Publish extends Command
      *
      * @var string
      */
-    protected $signature = 'publish:post';
+    protected $signature = 'publish:test';
 
     /**
      * The console command description.
@@ -29,19 +29,55 @@ class Publish extends Command
      */
     public function handle()
     {
-        // Log a message to indicate the command is running
-        Log::info('Publishing post...');
+        $result = Http::post('https://rpc.d.buzz/', [
+            'jsonrpc' => '2.0',
+            'method' => 'condenser_api.get_dynamic_global_properties',
+            'params' => [], //
+            'id' => 1,
+        ])->json()['result'];
 
-        // Make an HTTP request using Laravel's HttpClient
-        $response = Http::get('http://localhost:3000/faq'); // Replace with the URL you want to access
+        $headBlockNumber = $result['head_block_number'];
+        $lastBlock = 0;
 
-        // Log the response or handle it as needed
-        Log::info('HTTP Response: ' . $response->status());
+        if ($result && $headBlockNumber) {
+            if ($headBlockNumber > $lastBlock) {
+                $lastBlock = $headBlockNumber;
+            }
+        }
 
-        // You can also log the response content if needed
-        Log::info('Response Content: ' . $response->body());
+        $getBlockResult = $this->getBlock($lastBlock);
+        $operations = [];
 
-        // Return a success status
-        return Command::SUCCESS;
+        foreach($getBlockResult['transactions'] as $transaction) {
+            $operations[] = $transaction['operations'];
+        }
+
+        // dump($operations);
+        foreach($operations as $operation) {
+            $op = $operation[0];
+            if ($op[0] === 'vote') {
+                // Log::debug('Result', [$op]);
+                dump($op);
+                // Log::debug('Result', [$op[1]['parent_author'], $op[1]['author'], $op[1]['permlink'], $op[1]['parent_permlink']]);
+            }
+            // if ($op[0] === 'comment' && $op[1]['parent_author'] !== '') {
+            //     Log::debug('Result', [$op[1]['parent_author'], $op[1]['author'], $op[1]['permlink'], $op[1]['parent_permlink']]);
+            // }
+        }
+
+        // dump($getBlockResult);
+
+    }
+
+    public function getBlock($headBlockNumber)
+    {
+        $result = Http::post('https://rpc.d.buzz/', [
+            'jsonrpc' => '2.0',
+            'method' => 'condenser_api.get_block',
+            'params' => [$headBlockNumber], //
+            'id' => 1,
+        ])->json()['result'];
+
+        return $result;
     }
 }

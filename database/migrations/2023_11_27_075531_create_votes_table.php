@@ -15,6 +15,10 @@ return new class extends Migration
     {
         Schema::create('votes', function (Blueprint $table) {
             $table->id();
+            $table->string('voter');
+            $table->string('author');
+            $table->string('permlink');
+            $table->string('weight');
             $table->timestamps();
         });
     }

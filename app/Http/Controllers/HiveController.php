@@ -2,15 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\BroadcastVoteRequest;
+
 use App\Http\Requests\SearchUsernameRequest;
+use App\Models\Follower;
 use App\Models\User;
 use App\Traits\HttpResponses;
-use Hive\Helpers\Transaction;
 use Hive\Hive;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
-use Hive\PhpLib\Hive\Condenser as HiveCondenser;
 
 class HiveController extends Controller
 {
@@ -170,23 +169,14 @@ class HiveController extends Controller
 
     public function votes()
     {
-        // $response = Http::post('https://rpc.d.buzz/', [
-        //     'jsonrpc' => '2.0',
-        //     'method' => 'condenser_api.get_active_votes',
-        //     'params' => ['lindarey', '47g3iyz3s2v2131vy2anw6'],
-        //     'id' => 1,
+        // $broadcast = $this->hive->broadcast($this->postingPrivateKey, 'vote', [
+        //     'iamjco', // voter
+        //     'dbuzz', // author
+        //     'rtp2ok1xh1fynvktczma7', // permalink
+        //     5000 // weight
         // ]);
 
-        // return $response->json();
-
-        $broadcast = $this->hive->broadcast($this->postingPrivateKey, 'vote', [
-            'iamjco', // voter
-            'dbuzz', // author
-            'rtp2ok1xh1fynvktczma7', // permalink
-            5000 // weight
-        ]);
-
-        return $broadcast;
+        // return $broadcast;
     }
 
     public function searchAccount(SearchUsernameRequest $request)
@@ -194,6 +184,7 @@ class HiveController extends Controller
         $request->validated();
 
         $username = $request->username;
+        $userId = auth()->id();
         $response = Http::post('https://rpc.d.buzz/', [
             'jsonrpc' => '2.0',
             'method' => 'condenser_api.get_accounts',
@@ -208,6 +199,12 @@ class HiveController extends Controller
         if (!empty($data)) {
             $user = User::query()
                 ->with(['followers', 'curationTrailer', 'downvoteTrailer', 'followingsCurationCount', 'followingsDownvoteCount', 'followersCount'])
+                ->addSelect([
+                    'isFollowed' => Follower::select('id')
+                        ->whereColumn('user_id', 'users.id')
+                        ->where('follower_id', $userId)
+                        ->limit(1)
+                ])
                 ->updateOrCreate([
                     'username' => $username,
                 ]);

@@ -19,15 +19,11 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'username',
-        'email',
-        'password',
-        'enable',
-        'added',
-        'claim_reward',
-        'current_power',
-        'limit_power',
-        'sp',
-        'paused',
+        'is_enable',
+        'is_auto_claim_reward',
+        'limit_upvote_mana',
+        'limit_downvote_mana',
+        'is_pause',
         'discord_webhook_url',
     ];
 

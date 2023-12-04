@@ -24,9 +24,12 @@ class UpdateUserRequest extends FormRequest
     public function rules()
     {
         return [
-            'current_power' => ['required'],
-            'limit_power' => ['required'],
-            'paused' => ['required'],
+            'limitPower' => ['required_if:type,upvote,downvote', 'numeric'],
+            'isPause' => ['required_if:type,upvote,downvote', 'boolean'],
+            'type' => ['required', 'in:upvote,downvote,is_auto_claim_reward,is_enable'],
+            
+            'isEnable' => ['required_if:type,is_enable', 'boolean'],
+            'isAutoClaimReward' => ['required_if:type,is_auto_claim_reward', 'boolean'],
         ];
     }
 }

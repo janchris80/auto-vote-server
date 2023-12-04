@@ -45,10 +45,7 @@ class AuthController extends Controller
             'username' => $request->username,
         ]);
 
-        return $this->success([
-            'user' => $user,
-            // 'token' => $user->createToken('API Token of ' . $user->username)->plainTextToken,
-        ], "Register Successfully");
+        return $this->success($user, "Register Successfully");
     }
 
     public function logout()
@@ -72,7 +69,7 @@ class AuthController extends Controller
         $user = Auth::user();
 
         // Update the 'enable' column
-        $user->update(['enable' => !$user->enable]);
+        $user->update(['is_enable' => !$user->is_enable]);
     }
 
     public function update(UpdateUserRequest $request)
@@ -82,13 +79,23 @@ class AuthController extends Controller
         $userId = auth()->id();
         $user = User::find($userId);
 
-        $currentPower = floatval($request->current_power);
-        $limitPower = floatval($request->limit_power);
+        if ($request->type === 'upvote') {
+            $user->limit_upvote_mana = $request->limitPower * 100;
+        }
 
-        $user->current_power = $currentPower;
-        $user->limit_power = $limitPower;
-        $user->paused = $request->paused ? 1 : 0;
+        if ($request->type === 'downvote') {
+            $user->limit_downvote_mana = $request->limitPower * 100;
+        }
 
+        if ($request->type === 'is_auto_claim_reward') {
+            $user->is_auto_claim_reward = $request->isAutoClaimReward;
+        }
+
+        if ($request->type === 'is_enable') {
+            $user->is_enable = $request->isEnable;
+        }
+
+        $user->is_pause = $request->isPause;
         $user->save();
 
         return $this->success(new UserResource($user));

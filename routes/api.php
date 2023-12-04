@@ -34,7 +34,7 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::post('/trailers', [TrailerController::class, 'store']);
     Route::put('/trailers', [TrailerController::class, 'update']);
 
-    Route::put('/follower/update', [FollowerController::class, 'updateFollower']);
+    Route::put('/follower/update', [FollowerController::class, 'update']);
 
     Route::apiResource('/curations', CurationController::class);
     Route::apiResource('/followers', FollowerController::class);

@@ -17,12 +17,11 @@ class UserResource extends JsonResource
         return [
             "id"=> $this->id,
             "username" => $this->username,
-            "limitPower" => $this->limit_power,
-            "paused" => $this->paused,
-            "enable" => $this->enable,
-            "claimReward" => $this->claim_reward,
-            // "curation" => new TrailerResource($this->curationTrailer), // get the type of curation
-            // "downvote" => new TrailerResource($this->downvoteTrailer), // get the type of downvote
+            "limitUpvoteMana" => $this->limit_upvote_mana,
+            "limitDownvoteMana" => $this->limit_downvote_mana,
+            "isPause" => $this->is_pause,
+            "isEnable" => $this->is_enable,
+            "isAutoClaimReward" => $this->is_auto_claim_reward,
             "authorizeAccount" => config('hive.account'),
         ];
     }

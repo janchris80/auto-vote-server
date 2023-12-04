@@ -10,11 +10,10 @@ class CommentUpvote extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user',
+        'username',
         'commenter',
         'weight',
-        'aftermin',
         'enable',
-        'todayvote',
+        'today_vote',
     ];
 }

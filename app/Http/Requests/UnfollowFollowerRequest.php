@@ -24,8 +24,8 @@ class UnfollowFollowerRequest extends FormRequest
     public function rules()
     {
         return [
-            'user_id' => ['required'],
-            'type' => ['required'],
+            'userId' => ['required'],
+            'type' => ['required', 'in:fanbase,curation,downvote'],
         ];
     }
 }

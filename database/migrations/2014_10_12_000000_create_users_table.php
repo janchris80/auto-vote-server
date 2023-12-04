@@ -16,18 +16,12 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('username')->unique();
-            $table->string('email')->unique()->nullable();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password')->nullable();
-
-            $table->integer('enable')->default(0);
-            $table->integer('added')->default(0);
-            $table->integer('claim_reward')->default(0);
-            $table->float('current_power')->default(0);
-            $table->float('limit_power')->default(70);
-            $table->float('sp')->default(1000);
-            $table->integer('paused')->nullable();
-            $table->text('discord_webhook_url');
+            $table->integer('limit_upvote_mana')->default(10000);
+            $table->integer('limit_downvote_mana')->default(10000);
+            $table->boolean('is_auto_claim_reward')->default(false);
+            $table->boolean('is_enable')->default(false);
+            $table->boolean('is_pause')->default(false);
+            $table->text('discord_webhook_url')->nullable();
 
             $table->rememberToken();
             $table->timestamps();
