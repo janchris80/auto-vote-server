@@ -4,25 +4,18 @@ namespace App\Console\Commands\Broadcast;
 
 use App\Jobs\ProcessVotesJob;
 use App\Models\Follower;
-use Hive\Hive;
+use Hive\Helpers\PrivateKey;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Log;
 
 class Vote extends Command
 {
     protected $signature = 'broadcast:vote';
     protected $description = 'Vote';
-    protected $hive;
-
-    public function __construct(Hive $hive)
-    {
-        parent::__construct();
-        $this->hive = $hive;
-    }
 
     public function handle()
     {
-        $postingPrivateKey = $this->hive->privateKeyFrom(config('hive.private_key.posting'));
+        $postingKey = config('hive.private_key.posting'); // Be cautious with private keys
+        $postingPrivateKey = new PrivateKey($postingKey);
         Follower::query()
             ->whereHas('follower', function ($query) {
                 $query->where('is_enable', 1);
@@ -33,7 +26,7 @@ class Vote extends Command
             ->chunk(100, function ($followers) use ($postingPrivateKey) {
                 // dump($follower->toArray());
                 // $this->broadcastVotes($follower, $postingPrivateKey);
-                ProcessVotesJob::dispatch($followers, $postingPrivateKey, $this->hive);
+                ProcessVotesJob::dispatch($followers, $postingPrivateKey);
             });
     }
 }

@@ -15,13 +15,6 @@ class HiveController extends Controller
 {
     use HttpResponses;
     private $postingPrivateKey;
-    private $hive;
-
-    public function __construct()
-    {
-        $this->hive = new Hive();
-        $this->postingPrivateKey = $this->hive->privateKeyFrom(config('hive.private_key.posting'));
-    }
 
     public function hive()
     {

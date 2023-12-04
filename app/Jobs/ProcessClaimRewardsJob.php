@@ -20,15 +20,13 @@ class ProcessClaimRewardsJob implements ShouldQueue
 
     protected $followers;
     protected $postingPrivateKey;
-    protected $hive;
     public $tries = 3;
     public $timeout = 120; // in seconds
 
-    public function __construct($followers, $postingPrivateKey, Hive $hive)
+    public function __construct($followers, $postingPrivateKey)
     {
         $this->followers = $followers;
         $this->postingPrivateKey = $postingPrivateKey;
-        $this->hive = $hive;
     }
 
     /**
@@ -59,6 +57,7 @@ class ProcessClaimRewardsJob implements ShouldQueue
 
     protected function broadcastClaimReward($follower)
     {
+        $hive = new Hive();
         $username = $follower->username;
         $userId = $follower->id;
         $discordWebhookUrl = $follower->discord_webhook_url;
@@ -90,7 +89,7 @@ class ProcessClaimRewardsJob implements ShouldQueue
                         'reward_vests' => $rewardVests
                     ];
 
-                    $this->hive->broadcast(
+                    $hive->broadcast(
                         $this->postingPrivateKey,
                         'claim_reward_balance',
                         array_values($opParams)

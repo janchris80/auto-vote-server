@@ -22,15 +22,13 @@ class ProcessVotesJob implements ShouldQueue
 
     protected $followers;
     protected $postingPrivateKey;
-    protected $hive;
     public $tries = 3;
     public $timeout = 120; // in seconds
 
-    public function __construct($followers, $postingPrivateKey, Hive $hive)
+    public function __construct($followers, $postingPrivateKey)
     {
         $this->followers = $followers;
         $this->postingPrivateKey = $postingPrivateKey;
-        $this->hive = $hive;
     }
 
 
@@ -86,7 +84,8 @@ class ProcessVotesJob implements ShouldQueue
 
     protected function broadcastVote($vote, $postingPrivateKey)
     {
-        $result = $this->hive->broadcast($postingPrivateKey, 'vote', [
+        $hive = new Hive();
+        $result = $hive->broadcast($postingPrivateKey, 'vote', [
             $vote->voter,      // voter
             $vote->author,     // author
             $vote->permlink,   // permlink

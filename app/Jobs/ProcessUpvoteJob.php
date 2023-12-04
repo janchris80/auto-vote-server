@@ -16,14 +16,8 @@ class ProcessUpvoteJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $hive;
     public $tries = 3;
     public $timeout = 120; // in seconds
-
-    public function __construct(Hive $hive)
-    {
-        $this->hive = $hive;
-    }
 
     public function handle(): void
     {
@@ -47,7 +41,8 @@ class ProcessUpvoteJob implements ShouldQueue
 
     protected function broadcastVote($vote, $postingPrivateKey)
     {
-        $result = $this->hive->broadcast($postingPrivateKey, 'vote', [
+        $hive = new Hive();
+        $result = $hive->broadcast($postingPrivateKey, 'vote', [
             $vote->voter,      // voter
             $vote->author,     // author
             $vote->permlink,   // permlink
