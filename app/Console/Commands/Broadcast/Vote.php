@@ -25,7 +25,7 @@ class Vote extends Command
         $postingPrivateKey = $this->hive->privateKeyFrom(config('hive.private_key.posting'));
         Follower::query()
             ->whereHas('follower', function ($query) {
-                $query->where('enable', 1);
+                $query->where('is_enable', 1);
                 // ->where('current_power', '<=', DB::raw('`users`.`limit_power`')); // remove due to not align in live data
             })
             ->with(['user', 'follower'])

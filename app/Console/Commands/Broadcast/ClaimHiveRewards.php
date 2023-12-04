@@ -28,8 +28,8 @@ class ClaimHiveRewards extends Command
         $postingPrivateKey = new PrivateKey($postingKey);
 
         User::query()
-            ->where('claim_reward', 1)
-            ->where('enable', 1)
+            ->where('is_auto_claim_reward', 1)
+            ->where('is_enable', 1)
             ->chunk(100, function ($followers) use ($postingPrivateKey) {
                 // $this->broadcastClaimReward($followers, $postingPrivateKey);
                 ProcessClaimRewardsJob::dispatch($followers, $postingPrivateKey, $this->hive);
