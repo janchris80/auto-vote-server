@@ -7,7 +7,15 @@ use App\Http\Controllers\HiveController;
 use App\Http\Controllers\TrailerController;
 use Illuminate\Support\Facades\Route;
 
-
+// Check API status
+Route::get('/status', function () {
+    return [
+        'php_version' => phpversion(),
+        'app_name' => config('app.name'),
+        'environment' => config('app.env'),
+        // Add more information as needed
+    ];
+});
 // public route
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
