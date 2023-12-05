@@ -156,7 +156,7 @@ class ProcessVotesJob implements ShouldQueue
         $discordWebhookUrl = $follower->follower->discord_webhook_url;
         $username = $follower->follower->username;
         $userId = $follower->follower->id;
-        $limitMana = $follower->follower->limit_power;
+        $limitMana = $follower->follower->limit_upvote_mana / 100;
         $accountHistories = [];
         $voteOps = [];
 

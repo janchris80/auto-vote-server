@@ -5,14 +5,28 @@ use App\Http\Controllers\CurationController;
 use App\Http\Controllers\FollowerController;
 use App\Http\Controllers\HiveController;
 use App\Http\Controllers\TrailerController;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 // Check API status
 Route::get('/status', function () {
+    $dbStatus = false;
+
+    try {
+        // Attempt to connect to the database
+        DB::connection()->getPdo();
+        $dbStatus = true;
+    } catch (\Exception $e) {
+        // Connection could not be established
+        // You can log the error or handle it as needed
+        $dbStatus = false;
+    }
+
     return [
         'php_version' => phpversion(),
         'app_name' => config('app.name'),
         'environment' => config('app.env'),
+        'db_status' => $dbStatus,
         // Add more information as needed
     ];
 });
