@@ -234,7 +234,7 @@ class ProcessVotesJob implements ShouldQueue
 
                             if (!$votes) {
                                 $data[] = $vote;
-                                // $this->broadcastVote((object)$vote, $this->postingPrivateKey, $hive);
+                                $this->broadcastVote((object)$vote, $this->postingPrivateKey, $hive);
                             }
                             // Cache the timestamp of the request
                             Cache::put('last_api_request_time.condenser_api.get_active_votes', now(), 60); // 180 seconds cooldown = 3 minutes
