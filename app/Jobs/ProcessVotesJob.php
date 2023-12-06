@@ -36,10 +36,11 @@ class ProcessVotesJob implements ShouldQueue
     {
         $startTime = microtime(true); // Start timer
         Log::info("Starting ProcessVotesJob for followers chunk: " . count($this->followers));
+        $hive = new Hive();
         // broadcastVotes logic here
         foreach ($this->followers as $follower) {
             // Database lock check
-            DB::transaction(function () use ($follower) {
+            DB::transaction(function () use ($follower, $hive) {
                 $freshFollower = Follower::find($follower->id);
 
                 if ($freshFollower->is_being_processed) {
@@ -52,7 +53,7 @@ class ProcessVotesJob implements ShouldQueue
                 try {
                     // Main job logic
                     Log::info("Process starting for " . $follower->follower->username);
-                    $this->processFollower($freshFollower);
+                    $this->processFollower($freshFollower, $hive);
                     Log::info("Processing done for " . $follower->follower->username);
 
                     $freshFollower->is_being_processed = false;
@@ -82,9 +83,8 @@ class ProcessVotesJob implements ShouldQueue
         return Http::post('https://rpc.d.buzz/', $data)->json()['result'] ?? [];
     }
 
-    protected function broadcastVote($vote, $postingPrivateKey)
+    protected function broadcastVote($vote, $postingPrivateKey, $hive)
     {
-        $hive = new Hive();
         $result = $hive->broadcast($postingPrivateKey, 'vote', [
             $vote->voter,      // voter
             $vote->author,     // author
@@ -97,17 +97,18 @@ class ProcessVotesJob implements ShouldQueue
 
     protected function calculateVotingWeight($userWeightOption, $authorWeight, $votingType)
     {
+        $convertHivePercentage = 10000; // 100%
         $percentage = $userWeightOption; // 1%
-        $baseValue = $authorWeight / 100; // 13%
+        $baseValue = $authorWeight; // 13%
         $method = strtolower($votingType);
         $result = 0;
 
         if ($method === 'fixed') {
-            $result = $percentage * 100;
+            $result = $percentage;
         }
 
         if ($method === 'scaled') {
-            $result = (($percentage / 100) * $baseValue) * 100 * 100;
+            $result = (($percentage / $convertHivePercentage) * $baseValue);
         }
 
         return intval($result);
@@ -140,10 +141,10 @@ class ProcessVotesJob implements ShouldQueue
 
         $percent = number_format($percentage / 100, 2);
 
-        return $percent;
+        return intval($percentage);
     }
 
-    protected function processFollower($follower)
+    protected function processFollower($follower, $hive)
     {
         // Place your job's logic here
         $currentDateTime = Carbon::now('Asia/Manila');
@@ -156,7 +157,7 @@ class ProcessVotesJob implements ShouldQueue
         $discordWebhookUrl = $follower->follower->discord_webhook_url;
         $username = $follower->follower->username;
         $userId = $follower->follower->id;
-        $limitMana = $follower->follower->limit_upvote_mana / 100;
+        $limitMana = $follower->follower->limit_upvote_mana;
         $accountHistories = [];
         $voteOps = [];
 
@@ -170,14 +171,14 @@ class ProcessVotesJob implements ShouldQueue
             // Process the response
             if (!empty($account)) {
                 $currentMana = $this->processAccountCurrentMana($account[0]);
-                $isLimitted = $currentMana < $limitMana;
+                $isLimitted = intval($currentMana) < intval($limitMana);
             }
 
-            $currentManaText = "Your mana ($currentMana < $limitMana) is low, can't process a vote.";
+            $currentManaText = "Your mana (" . ($currentMana / 100) < ($limitMana / 100) . ") is low, can't process a vote.";
 
 
             if (!$isLimitted) {
-                $currentManaText = "Your mana ($currentMana < $limitMana) is high, can process a vote";
+                $currentManaText = "Your mana (" . ($currentMana / 100) < ($limitMana / 100) . ") is high, can process a vote";
                 $accountWatcher = $follower->user->username;
                 $method = $follower->voting_type;
                 $userWeight = $follower->weight;
@@ -233,7 +234,7 @@ class ProcessVotesJob implements ShouldQueue
 
                             if (!$votes) {
                                 $data[] = $vote;
-                                $this->broadcastVote((object)$vote, $this->postingPrivateKey);
+                                // $this->broadcastVote((object)$vote, $this->postingPrivateKey, $hive);
                             }
                             // Cache the timestamp of the request
                             Cache::put('last_api_request_time.condenser_api.get_active_votes', now(), 60); // 180 seconds cooldown = 3 minutes
@@ -250,6 +251,7 @@ class ProcessVotesJob implements ShouldQueue
                 Log::warning($currentManaText);
             }
 
+            Log::info('data', $data);
             Log::info('Total accountHistories: ' . count($accountHistories ?? []));
             Log::info('Total voteOps: ' . count($voteOps ?? []));
             Log::info('Total votes: ' . count($data ?? []));
@@ -258,21 +260,24 @@ class ProcessVotesJob implements ShouldQueue
             $countAccountHistories = count($accountHistories ?? []);
             $countVoteOps = count($voteOps ?? []);
             $countData = count($data ?? []);
+            $displayData = json_encode($data);
 
             if ($discordWebhookUrl && $countData) {
                 $logMessages = <<<LOG
+                ----------------------------------------------------------
+                $displayData
                 ----------------------------------------------------------
                 LOG;
 
                 $discordFields = [
                     [
                         'name' => 'Current Mana',
-                        'value' => $currentMana . "% *(hive mana)*",
+                        'value' => $currentMana / 100 . "% *(hive mana)*",
                         'inline' => false,
                     ],
                     [
                         'name' => 'Limit Mana',
-                        'value' => $limitMana . "% *(Settings in auto.vote)*",
+                        'value' => $limitMana / 100 . "% *(Settings in auto.vote)*",
                         'inline' => false,
                     ],
                     [
