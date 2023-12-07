@@ -296,7 +296,7 @@ class ProcessVotesJob implements ShouldQueue
                         ],
                     ];
 
-                    SendDiscordNotificationJob::dispatch($userId, $discordFields, $logMessages);
+                    SendDiscordNotificationJob::dispatch($userId, $discordFields, $logMessages)->onQueue('notification');
                 }
                 // Cache the timestamp of the request
                 // Cache::put('last_api_request_time.condenser_api.get_accounts', now(), 60); // 180 seconds cooldown = 3 minutes
