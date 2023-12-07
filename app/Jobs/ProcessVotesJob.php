@@ -105,34 +105,38 @@ class ProcessVotesJob implements ShouldQueue
     {
         $votes = [];
 
-        foreach ($transactions as $tx) {
-            if ($this->canMakeRequest('condenser_api.get_active_votes')) {
-                $activeVotes = $this->getActiveVotes($tx['author'], $tx['permlink']);
+        try {
+            foreach ($transactions as $tx) {
+                if ($this->canMakeRequest('condenser_api.get_active_votes')) {
+                    $activeVotes = $this->getActiveVotes($tx['author'], $tx['permlink']);
 
-                $isVoted = $activeVotes->contains('voter', $usernameToCheck);
-                $weight = $this->calculateVotingWeight($userWeight, $tx['weight'], $method);
+                    $isVoted = $activeVotes->contains('voter', $usernameToCheck);
+                    $weight = $this->calculateVotingWeight($userWeight, $tx['weight'], $method);
 
-                if (!$isVoted) {
-                    $tx['voter'] = $usernameToCheck;
-                    $tx['weight'] = $weight;
-                    $votes[] = $tx;
+                    if (!$isVoted) {
+                        $tx['voter'] = $usernameToCheck;
+                        $tx['weight'] = $weight;
+                        $votes[] = $tx;
 
-                    Vote::updateOrCreate(
-                        [
-                            'voter' => $usernameToCheck,
-                            'author' => $tx['author'],
-                            'permlink' => $tx['permlink'],
-                        ],
-                        [
-                            'weight' => $weight,
-                        ]
-                    );
+                        Vote::updateOrCreate(
+                            [
+                                'voter' => $usernameToCheck,
+                                'author' => $tx['author'],
+                                'permlink' => $tx['permlink'],
+                            ],
+                            [
+                                'weight' => $weight,
+                            ]
+                        );
+                    }
+
+                    // Cache::put('last_api_request_time.condenser_api.get_active_votes', now(), 60); // 60 seconds cooldown
+                } else {
+                    Log::warning("Rate limit hit for condenser_api.get_active_votes, delaying the request for follower: " . $usernameToCheck);
                 }
-
-                // Cache::put('last_api_request_time.condenser_api.get_active_votes', now(), 60); // 60 seconds cooldown
-            } else {
-                Log::warning("Rate limit hit for condenser_api.get_active_votes, delaying the request for follower: " . $usernameToCheck);
             }
+        } catch (\Throwable $th) {
+            Log::warning("Process processUpvotes error: " . $th->getMessage());
         }
     }
 
@@ -163,21 +167,13 @@ class ProcessVotesJob implements ShouldQueue
                 }
                 $currentManaText = "Your mana (" . ($currentMana / 100) < ($limitMana / 100) . ") is low, can't process a vote.";
 
-                Log::info('test', [
-                    $currentMana,
-                    $isLimitted,
-                    $currentManaText,
-                ]);
-
                 if (!$isLimitted) {
                     $currentManaText = "Your mana (" . ($currentMana / 100) < ($limitMana / 100) . ") is high, can process a vote";
                     $accountWatcher = $follower->user->username;
 
                     if ($this->canMakeRequest('condenser_api.get_account_history')) {
-                        Log::info('Voting: ', [$follower->trailer_type]);
                         // Process the response
                         $history = $this->getAccountHistory($accountWatcher);
-
 
                         if (in_array($follower->trailer_type, ['curation', 'dowvote'])) {
                             $this->processUpvotes(
@@ -189,7 +185,6 @@ class ProcessVotesJob implements ShouldQueue
                         }
 
                         if ($follower->trailer_type === 'upvote_post') {
-                            Log::info('Voting: ', [$follower->trailer_type]);
                             $posts = $this->getAccountPost($accountWatcher);
 
                             foreach ($posts as $post) {
@@ -197,9 +192,14 @@ class ProcessVotesJob implements ShouldQueue
                                 $isUserFound = $activeVotesCollection->contains('voter', $username);
 
                                 if ($isUserFound) {
+                                    Log::info("upvote_post", [
+                                        'voter' => $username,
+                                        'author' => $post['author'] ?? '',
+                                        'permlink' => $post['permlink'] ?? '',
+                                    ]);
                                     Vote::updateOrCreate(
                                         [
-                                            'votere' => $username,
+                                            'voter' => $username,
                                             'author' => $post['author'],
                                             'permlink' => $post['permlink'],
                                         ],
@@ -212,22 +212,33 @@ class ProcessVotesJob implements ShouldQueue
                         }
 
                         if ($follower->trailer_type === 'upvote_comment') {
-                            Log::info('Voting: ', [$follower->trailer_type]);
                             $userPosts = $this->getAccountPost($username);
 
-                            foreach($userPosts as $post) {
+                            foreach ($userPosts as $post) {
                                 $replies = $this->getContentReplies($username, $post['permlink']);
 
-                                Vote::updateOrCreate(
-                                    [
-                                        'votere' => $username,
-                                        'author' => $replies['author'],
-                                        'permlink' => $replies['permlink'],
-                                    ],
-                                    [
-                                        'weight' => $follower->weight,
-                                    ]
-                                );
+                                if (count($replies)) {
+                                    foreach ($replies as $reply) {
+                                        Log::info('upvote_comment', [
+                                            'voter' => $username,
+                                            'author' => $reply['author'] ?? '',
+                                            'permlink' => $reply['permlink'] ?? '',
+                                        ]);
+
+                                        if ($reply['author'] === $accountWatcher) {
+                                            Vote::updateOrCreate(
+                                                [
+                                                    'voter' => $username,
+                                                    'author' => $reply['author'],
+                                                    'permlink' => $reply['permlink'],
+                                                ],
+                                                [
+                                                    'weight' => $follower->weight,
+                                                ]
+                                            );
+                                        }
+                                    }
+                                }
                             }
                         }
 
@@ -236,7 +247,7 @@ class ProcessVotesJob implements ShouldQueue
                         Log::warning("Rate limit hit for condenser_api.get_account_history, delaying the request for follower: " . $username);
                     }
                 } else {
-                    Log::warning($currentManaText, []);
+                    Log::warning("Mana is not enough");
                 }
 
                 $countAccountHistories = count($accountHistories ?? []);
