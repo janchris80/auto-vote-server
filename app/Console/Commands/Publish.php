@@ -29,6 +29,71 @@ class Publish extends Command
      */
     public function handle()
     {
+        // $this->processBlocks();
+
+        $history = $this->getAccountHistory('dbuzz');
+        $result = $this->processVotes($history, 'iamjco');
+
+        // Log::info("", $result);
+    }
+
+    function getAccountHistory($username)
+    {
+        $response = Http::post('https://api.hive.blog', [
+            'jsonrpc' => '2.0',
+            'method' => 'condenser_api.get_account_history',
+            'params' => [$username, -1, 150, 1],
+            'id' => 1,
+        ])->json()['result'] ?? [];
+
+        $voteOps = collect($response)
+            ->filter(function ($tx) use ($username) {
+                return $tx[1]['op'][1]['voter'] === $username;
+            })
+            ->map(function ($tx) {
+                return $tx[1]['op'][1];
+            });
+
+        return $voteOps;
+    }
+
+    function getActiveVotes($author, $permlink)
+    {
+        $response = Http::post('https://api.hive.blog', [
+            'jsonrpc' => '2.0',
+            'method' => 'condenser_api.get_active_votes',
+            'params' => [$author, $permlink],
+            'id' => 1,
+        ])->json()['result'] ?? [];
+
+        return collect($response);
+    }
+
+    function processVotes($transactions, $usernameToCheck)
+    {
+        $votes = [];
+        $voted = [];
+
+        echo count($transactions);
+
+        foreach ($transactions as $tx) {
+            $activeVotes = $this->getActiveVotes($tx['author'], $tx['permlink']);
+
+            $isVoted = $activeVotes->contains('voter', $usernameToCheck);
+
+            if (!$isVoted) {
+                $tx['voter'] = $usernameToCheck;
+                $votes[] = $tx;
+            }
+        }
+
+        dump($votes);
+
+        return ['votes' => $votes, 'voted' => $voted];
+    }
+
+    public function processBlocks()
+    {
         $result = Http::post('https://rpc.d.buzz/', [
             'jsonrpc' => '2.0',
             'method' => 'condenser_api.get_dynamic_global_properties',
@@ -48,12 +113,12 @@ class Publish extends Command
         $getBlockResult = $this->getBlock($lastBlock);
         $operations = [];
 
-        foreach($getBlockResult['transactions'] as $transaction) {
+        foreach ($getBlockResult['transactions'] as $transaction) {
             $operations[] = $transaction['operations'];
         }
 
         // dump($operations);
-        foreach($operations as $operation) {
+        foreach ($operations as $operation) {
             $op = $operation[0];
             if ($op[0] === 'vote') {
                 // Log::debug('Result', [$op]);
@@ -66,7 +131,6 @@ class Publish extends Command
         }
 
         // dump($getBlockResult);
-
     }
 
     public function getBlock($headBlockNumber)

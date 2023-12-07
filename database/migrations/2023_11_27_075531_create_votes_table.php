@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('author');
             $table->string('permlink');
             $table->string('weight');
+            $table->boolean('is_voted')->default(false);
             $table->timestamps();
         });
     }

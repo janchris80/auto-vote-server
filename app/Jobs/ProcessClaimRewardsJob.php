@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Traits\DiscordTrait;
 use Carbon\Carbon;
+use Hive\Helpers\PrivateKey;
 use Hive\Hive;
 use Illuminate\Bus\Queueable;
 use Illuminate\Queue\SerializesModels;
@@ -19,14 +20,12 @@ class ProcessClaimRewardsJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels, DiscordTrait;
 
     protected $followers;
-    protected $postingPrivateKey;
     public $tries = 3;
     public $timeout = 120; // in seconds
 
-    public function __construct($followers, $postingPrivateKey)
-    {
+    public function __construct($followers)
+    {;
         $this->followers = $followers;
-        $this->postingPrivateKey = $postingPrivateKey;
     }
 
     /**
@@ -34,28 +33,25 @@ class ProcessClaimRewardsJob implements ShouldQueue
      */
     public function handle(): void
     {
+        $postingKey = config('hive.private_key.posting'); // Be cautious with private keys
+        $postingPrivateKey = new PrivateKey($postingKey);
+
         $startTime = microtime(true); // Start timer
         Log::info("Starting ProcessClaimRewardsJob for followers chunk: " . count($this->followers));
         // broadcastClaimReward logic here
         foreach ($this->followers as $follower) {
             try {
-                Log::info("Process starting for " . $follower->username);
-                $this->broadcastClaimReward($follower);
-                Log::info("Processing done for " . $follower->username);
+                $this->broadcastClaimReward($follower, $postingPrivateKey);
             } catch (\Exception $e) {
                 Log::warning('Error claiming rewards: ' . $e->getMessage());
             }
         }
 
         Log::info("Job ProcessClaimRewardsJob successfully");
-
-        $endTime = microtime(true); // End timer
-        $duration = $endTime - $startTime; // Calculate duration
-
-        Log::info("Total time taken: {$duration} seconds\n");
+        Log::info("Total time taken: {" . microtime(true) - $startTime . "} seconds\n");
     }
 
-    protected function broadcastClaimReward($follower)
+    protected function broadcastClaimReward($follower, $postingPrivateKey)
     {
         $hive = new Hive();
         $username = $follower->username;
@@ -64,7 +60,7 @@ class ProcessClaimRewardsJob implements ShouldQueue
 
         $hasRewards = true;
 
-        if ($this->canMakeRequest()) {
+        if ($this->canMakeRequest('claim.condenser_api.get_accounts')) {
             $account = $this->makeHttpRequest([
                 'jsonrpc' => '2.0',
                 'method' => 'condenser_api.get_accounts',
@@ -90,14 +86,12 @@ class ProcessClaimRewardsJob implements ShouldQueue
                     ];
 
                     $hive->broadcast(
-                        $this->postingPrivateKey,
+                        $postingPrivateKey,
                         'claim_reward_balance',
                         array_values($opParams)
                     );
                 }
             }
-
-            Log::info('Rewards claimed successfully for ' . $username);
 
             if ($discordWebhookUrl) {
                 $message = $hasRewards ? 'Rewards claimed successfully for' : 'No rewards to claim for';
@@ -112,15 +106,15 @@ class ProcessClaimRewardsJob implements ShouldQueue
             }
 
             // Cache the timestamp of the request
-            Cache::put('last_api_request_time.condenser_api.get_accounts', now(), 60); // 180 seconds cooldown = 3 minutes
+            Cache::put('last_api_request_time.claim.condenser_api.get_accounts', now(), 60); // 180 seconds cooldown = 3 minutes
         } else {
-            Log::warning("Rate limit hit condenser_api.get_accounts, delaying the request for follower: " . $follower->id);
+            Log::warning("Rate limit hit claim.condenser_api.get_accounts, delaying the request for follower: " . $follower->id);
         }
     }
 
-    protected function canMakeRequest()
+    protected function canMakeRequest($name)
     {
-        return !Cache::has('last_api_request_time');
+        return !Cache::has('last_api_request_time.' . $name);
     }
 
     protected function makeHttpRequest($data)

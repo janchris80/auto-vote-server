@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Follower;
+use App\Models\Vote;
 use Carbon\Carbon;
 use Hive\Hive;
 use Illuminate\Bus\Queueable;
@@ -19,14 +20,12 @@ class ProcessVotesJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $followers;
-    protected $postingPrivateKey;
     public $tries = 3;
     public $timeout = 120; // in seconds
 
-    public function __construct($followers, $postingPrivateKey)
+    public function __construct($followers)
     {
         $this->followers = $followers;
-        $this->postingPrivateKey = $postingPrivateKey;
     }
 
     public function handle()
@@ -34,26 +33,113 @@ class ProcessVotesJob implements ShouldQueue
         $startTime = microtime(true); // Start timer
         Log::info("Starting ProcessVotesJob for " . count($this->followers) . " followers");
 
-        $hive = new Hive();
-
         foreach ($this->followers as $follower) {
-            $this->processFollower($follower, $hive);
+            $this->processFollower($follower);
             unset($follower);
         };
 
         Log::info("ProcessVotesJob completed in " . (microtime(true) - $startTime) . " seconds");
     }
 
+    public function getAccountPost($username)
+    {
+        $response = $this->makeHttpRequest([
+            'jsonrpc' => '2.0',
+            'method' => 'bridge.get_account_posts',
+            'params' => [
+                "sort" => "posts",
+                "account" => $username,
+                "limit" => 20,
+            ],
+            'id' => 1,
+        ]);
 
+        return $response;
+    }
 
-    protected function processFollower($follower, $hive)
+    public function getContentReplies($username, $permlink)
+    {
+        $response = $this->makeHttpRequest([
+            'jsonrpc' => '2.0',
+            'method' => 'condenser_api.get_content_replies',
+            'params' => [$username, $permlink],
+            'id' => 1,
+        ]);
+
+        return $response;
+    }
+
+    protected function getAccountHistory($username)
+    {
+        $response = $this->makeHttpRequest([
+            'jsonrpc' => '2.0',
+            'method' => 'condenser_api.get_account_history',
+            'params' => [$username, -1, 150, 1],
+            'id' => 1,
+        ]);
+
+        $voteOps = collect($response)
+            ->filter(function ($tx) use ($username) {
+                return $tx[1]['op'][1]['voter'] === $username;
+            })
+            ->map(function ($tx) {
+                return $tx[1]['op'][1];
+            });
+
+        return $voteOps;
+    }
+
+    protected function getActiveVotes($author, $permlink)
+    {
+        $response = $this->makeHttpRequest([
+            'jsonrpc' => '2.0',
+            'method' => 'condenser_api.get_active_votes',
+            'params' => [$author, $permlink],
+            'id' => 1,
+        ]);
+
+        return collect($response);
+    }
+
+    protected function processUpvotes($transactions, $usernameToCheck, $userWeight, $method)
+    {
+        $votes = [];
+
+        foreach ($transactions as $tx) {
+            if ($this->canMakeRequest('condenser_api.get_active_votes')) {
+                $activeVotes = $this->getActiveVotes($tx['author'], $tx['permlink']);
+
+                $isVoted = $activeVotes->contains('voter', $usernameToCheck);
+                $weight = $this->calculateVotingWeight($userWeight, $tx['weight'], $method);
+
+                if (!$isVoted) {
+                    $tx['voter'] = $usernameToCheck;
+                    $tx['weight'] = $weight;
+                    $votes[] = $tx;
+
+                    Vote::updateOrCreate(
+                        [
+                            'voter' => $usernameToCheck,
+                            'author' => $tx['author'],
+                            'permlink' => $tx['permlink'],
+                        ],
+                        [
+                            'weight' => $weight,
+                        ]
+                    );
+                }
+
+                // Cache::put('last_api_request_time.condenser_api.get_active_votes', now(), 60); // 60 seconds cooldown
+            } else {
+                Log::warning("Rate limit hit for condenser_api.get_active_votes, delaying the request for follower: " . $usernameToCheck);
+            }
+        }
+    }
+
+    protected function processFollower($follower)
     {
         try {
-            $currentDateTime = Carbon::now('Asia/Manila');
-            $newDateTime = $currentDateTime->addMinutes(70);
-            $formattedTime = $newDateTime->format('Y-m-d H:i:s');
-            $lastProcessedTxId = -1;
-            $data = [];
+            $votes = [];
             $isLimitted = false;
 
             $discordWebhookUrl = $follower->follower->discord_webhook_url;
@@ -63,7 +149,7 @@ class ProcessVotesJob implements ShouldQueue
             $accountHistories = [];
             $voteOps = [];
 
-            if ($this->canMakeRequest()) {
+            if ($this->canMakeRequest('condenser_api.get_accounts')) {
                 $account = $this->makeHttpRequest([
                     'jsonrpc' => '2.0',
                     'method' => 'condenser_api.get_accounts',
@@ -75,89 +161,90 @@ class ProcessVotesJob implements ShouldQueue
                     $currentMana = $this->processAccountCurrentMana($account[0]);
                     $isLimitted = intval($currentMana) < intval($limitMana);
                 }
-
                 $currentManaText = "Your mana (" . ($currentMana / 100) < ($limitMana / 100) . ") is low, can't process a vote.";
+
+                Log::info('test', [
+                    $currentMana,
+                    $isLimitted,
+                    $currentManaText,
+                ]);
 
                 if (!$isLimitted) {
                     $currentManaText = "Your mana (" . ($currentMana / 100) < ($limitMana / 100) . ") is high, can process a vote";
                     $accountWatcher = $follower->user->username;
-                    $method = $follower->voting_type;
-                    $userWeight = $follower->weight;
 
-                    if ($this->canMakeRequest()) {
+                    if ($this->canMakeRequest('condenser_api.get_account_history')) {
+                        Log::info('Voting: ', [$follower->trailer_type]);
                         // Process the response
-                        $accountHistories = $this->makeHttpRequest([
-                            'jsonrpc' => '2.0',
-                            'method' => 'condenser_api.get_account_history',
-                            'params' => [$accountWatcher, -1, 100], //
-                            'id' => 1,
-                        ]);
-
-                        $voteOps = collect($accountHistories)
-                            ->filter(function ($tx) use ($lastProcessedTxId) {
-                                return $tx[0] > $lastProcessedTxId;
-                            })
-                            ->map(function ($tx) use (&$lastProcessedTxId) {
-                                $lastProcessedTxId = $tx[0];
-                                return $tx[1]['op'];
-                            })
-                            ->filter(function ($op) use ($accountWatcher) {
-                                return $op[0] === 'vote' && $op[1]['voter'] === $accountWatcher;
-                            });
+                        $history = $this->getAccountHistory($accountWatcher);
 
 
-                        foreach ($voteOps as $voteOp) {
-                            $postAuthor = $voteOp[1]['author'];
-                            $postPermlink = $voteOp[1]['permlink'];
-                            $postWeight = $voteOp[1]['weight'];
-                            $weight = $this->calculateVotingWeight($userWeight, $postWeight, $method);
+                        if (in_array($follower->trailer_type, ['curation', 'dowvote'])) {
+                            $this->processUpvotes(
+                                $history,
+                                $username,
+                                $follower->weight,
+                                $follower->voting_type
+                            );
+                        }
 
-                            $vote = [
-                                'voter' => $username,
-                                'author' => $postAuthor,
-                                'permlink' => $postPermlink,
-                                'weight' => $weight,
-                            ];
+                        if ($follower->trailer_type === 'upvote_post') {
+                            Log::info('Voting: ', [$follower->trailer_type]);
+                            $posts = $this->getAccountPost($accountWatcher);
 
-                            // Example of an HTTP request with rate limiting
-                            if ($this->canMakeRequest()) {
-                                $activeVotes = $this->makeHttpRequest([
-                                    'jsonrpc' => '2.0',
-                                    'method' => 'condenser_api.get_active_votes',
-                                    'params' => [$postAuthor, $postPermlink],
-                                    'id' => 1,
-                                ]);
-                                // Process the response
-                                $votes = collect($activeVotes)
-                                    ->contains(function ($vote) use ($username) {
-                                        return $vote['voter'] === $username;
-                                    });
+                            foreach ($posts as $post) {
+                                $activeVotesCollection = collect($post['active_votes']);
+                                $isUserFound = $activeVotesCollection->contains('voter', $username);
 
-                                if (!$votes) {
-                                    $data[] = $vote;
-                                    // $this->broadcastVote((object)$vote, $this->postingPrivateKey, $hive);
+                                if ($isUserFound) {
+                                    Vote::updateOrCreate(
+                                        [
+                                            'votere' => $username,
+                                            'author' => $post['author'],
+                                            'permlink' => $post['permlink'],
+                                        ],
+                                        [
+                                            'weight' => $follower->weight,
+                                        ]
+                                    );
                                 }
-                                // Cache the timestamp of the request
-                                Cache::put('last_api_request_time.condenser_api.get_active_votes', now(), 60); // 180 seconds cooldown = 3 minutes
-                            } else {
-                                Log::warning("Rate limit hit condenser_api.get_active_votes, delaying the request for follower: " . $follower->id);
                             }
                         }
-                        // Cache the timestamp of the request
-                        Cache::put('last_api_request_time.condenser_api.get_account_history', now(), 60); // 60 seconds cooldown
+
+                        if ($follower->trailer_type === 'upvote_comment') {
+                            Log::info('Voting: ', [$follower->trailer_type]);
+                            $userPosts = $this->getAccountPost($username);
+
+                            foreach($userPosts as $post) {
+                                $replies = $this->getContentReplies($username, $post['permlink']);
+
+                                Vote::updateOrCreate(
+                                    [
+                                        'votere' => $username,
+                                        'author' => $replies['author'],
+                                        'permlink' => $replies['permlink'],
+                                    ],
+                                    [
+                                        'weight' => $follower->weight,
+                                    ]
+                                );
+                            }
+                        }
+
+                        // Cache::put('last_api_request_time.condenser_api.get_account_history', now(), 60); // 60 seconds cooldown
                     } else {
-                        Log::warning("Rate limit hit for condenser_api.get_account_history, delaying the request for follower: " . $follower->id);
+                        Log::warning("Rate limit hit for condenser_api.get_account_history, delaying the request for follower: " . $username);
                     }
                 } else {
-                    Log::warning($currentManaText);
+                    Log::warning($currentManaText, []);
                 }
 
                 $countAccountHistories = count($accountHistories ?? []);
                 $countVoteOps = count($voteOps ?? []);
-                $countData = count($data ?? []);
-                $displayData = json_encode($data);
+                $countData = count($votes ?? []);
+                $displayData = json_encode($votes);
 
-                if ($discordWebhookUrl && $countData) {
+                if ($discordWebhookUrl) {
                     $logMessages = <<<LOG
                     ----------------------------------------------------------
                     $displayData
@@ -201,9 +288,9 @@ class ProcessVotesJob implements ShouldQueue
                     SendDiscordNotificationJob::dispatch($userId, $discordFields, $logMessages);
                 }
                 // Cache the timestamp of the request
-                Cache::put('last_api_request_time.condenser_api.get_accounts', now(), 60); // 180 seconds cooldown = 3 minutes
+                // Cache::put('last_api_request_time.condenser_api.get_accounts', now(), 60); // 180 seconds cooldown = 3 minutes
             } else {
-                Log::warning("Rate limit hit for condenser_api.get_accounts, delaying the request for follower: " . $follower->id);
+                Log::warning("Rate limit hit for condenser_api.get_accounts, delaying the request for follower: " . $username);
             }
 
             // $this->updateFollowerProcessingStatus($follower->id, false);
@@ -220,25 +307,15 @@ class ProcessVotesJob implements ShouldQueue
     }
 
 
-    protected function canMakeRequest()
+    protected function canMakeRequest($name)
     {
-        return !Cache::has('last_api_request_time');
+        return !Cache::has('last_api_request_time.' . $name);
     }
 
     protected function makeHttpRequest($data)
     {
         // Replace with your actual HTTP request logic
         return Http::post('https://rpc.d.buzz/', $data)->json()['result'] ?? [];
-    }
-
-    protected function broadcastVote($vote, $postingPrivateKey, $hive)
-    {
-        $result = $hive->broadcast($postingPrivateKey, 'vote', [
-            $vote->voter,      // voter
-            $vote->author,     // author
-            $vote->permlink,   // permlink
-            $vote->weight      // weight
-        ]);
     }
 
     protected function calculateVotingWeight($userWeightOption, $authorWeight, $votingType)
