@@ -20,6 +20,7 @@ class FollowingUpvoteCommentResource extends JsonResource
             "userId" => $this->id,
             // "followersCount" => $this->follower()->count(),
             'weight' => $this->follower->weight,
+            'isEnable' => $this->follower->is_enable,
         ];
     }
 }

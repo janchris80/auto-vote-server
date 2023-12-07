@@ -13,10 +13,22 @@ use App\Http\Resources\PopularResource;
 use App\Models\Trailer;
 use App\Models\User;
 use App\Traits\HttpResponses;
+use Illuminate\Http\Request;
 
 class FollowerController extends Controller
 {
     use HttpResponses;
+
+
+    public function getFollowing(Request $request)
+    {
+        return $this->getFollowingsByType($request, $request->type);
+    }
+
+    public function getPopular(Request $request)
+    {
+        return $this->getPopularByType($request, $request->type);
+    }
 
     public function getPopularCuration()
     {
@@ -28,7 +40,7 @@ class FollowerController extends Controller
                 'isFollowed' => Follower::select('follower_id')
                     ->whereColumn('user_id', 'users.id')
                     ->where('follower_id', $userId)
-                    ->where('follower_type', 'curation')
+                    ->where('trailer_type', 'curation')
                     ->limit(1)
             ])
             ->paginate(10);
@@ -42,12 +54,13 @@ class FollowerController extends Controller
 
         $populars = User::query()
             ->whereHasTrailer('downvote')
+            ->with([['followers', 'trailers']])
             ->withCount('followers')
             ->addSelect([
                 'isFollowed' => Follower::select('follower_id')
                     ->whereColumn('user_id', 'users.id')
                     ->where('follower_id', $userId)
-                    ->where('follower_type', 'downvote')
+                    ->where('trailer_type', 'downvote')
                     ->limit(1)
             ])
             ->paginate(10);
@@ -110,19 +123,31 @@ class FollowerController extends Controller
     public function follow(StoreFollowerRequest $request)
     {
         $request->validated();
-        $follower = Follower::create([
-            "user_id" => $request->userId,
-            "follower_id" => auth()->id(),
-            "follower_type" => $request->type,
-            "voting_type" => 'scaled',
-            "enable" => true, "weight" => $request->weight ?? 5000, // to get the percent need to 5000 / 100 = 50%
-        ]);
 
         $trailer = Trailer::updateOrCreate(
-            ['user_id' => $request->userId, 'type' => $request->type],
-            ['description' => 'None']
+            [
+                'user_id' => $request->userId,
+                'trailer_type' => $request->trailerType,
+            ],
+            [
+                'description' => null,
+            ]
         );
 
+        $votingType = in_array($request->trailerType, ['upvote_comment', 'upvote_post'])
+            ? 'fixed'
+            : $request->votingType;
+
+        if ($trailer) {
+            $follower = Follower::create([
+                "user_id" => $request->userId,
+                "follower_id" => auth()->id(),
+                "trailer_type" => $request->trailerType,
+                "voting_type" =>$votingType,
+                "enable" => true,
+                "weight" => $request->weight ?? 10000, // to get the percent need to 10000 / 100 = 100%
+            ]);
+        }
 
         return $this->success($follower, 'Successfully Followed.');
     }
@@ -132,17 +157,11 @@ class FollowerController extends Controller
         $request->validated();
         $model = Follower::where("user_id", "=", $request->userId)
             ->where("follower_id", auth()->id())
-            ->where("follower_type", "=", $request->type)
+            ->where("trailer_type", "=", $request->trailerType)
             ->delete();
 
         return $this->success($model, 'Successfully Unfollow.');
     }
-
-    public function destroy(Follower $follower)
-    {
-        // 
-    }
-
 
     public function update(UpdateFollowerRequest $request)
     {
@@ -150,15 +169,39 @@ class FollowerController extends Controller
 
         $follower = Follower::find($request->id);
 
-        $follower->enable = $request->isEnable;
-        $follower->voting_type = strtolower($request->votingType);
-        $follower->follower_type = strtolower($request->type);
+        if (!$follower) {
+            return $this->error(null, 'Follower not found', 404);
+        }
+
+        $follower->is_enable = $request->isEnable;
+        $follower->voting_type = $request->votingType ? strtolower($request->votingType) : 'fixed';
+        $follower->trailer_type = strtolower($request->trailerType);
         $follower->weight = $request->weight * 100;
-        $follower->after_min = $request->afterMin;
-        $follower->daily_limit = $request->dailyLimit;
-        $follower->limit_left = $request->limitLeft;
         $follower->save();
 
         return $this->success($follower, 'User was successfully updated.');
+    }
+
+    private function getFollowingsByType($request, $type)
+    {
+        $method = 'getFollowing' . $this->snakeToCamel($type);
+        return method_exists($this, $method)
+            ? $this->$method($request)
+            : FollowingResource::collection([]);
+    }
+
+    private function getPopularByType($request, $type)
+    {
+        $method = 'getPopular' . $this->snakeToCamel($type);
+        return method_exists($this, $method)
+            ? $this->$method($request)
+            : PopularResource::collection([]);
+    }
+
+    private function snakeToCamel($string)
+    {
+        $words = explode('_', $string); // Split the string into an array on underscores
+        $words = array_map('ucfirst', $words); // Capitalize the first letter of each word
+        return implode('', $words); // Concatenate them back together
     }
 }

@@ -24,9 +24,9 @@ class Vote extends Command
             ->with(['user', 'follower'])
             ->where('enable', '=', 1)
             ->chunk(100, function ($followers) use ($postingPrivateKey) {
-                // dump($follower->toArray());
-                // $this->broadcastVotes($follower, $postingPrivateKey);
                 ProcessVotesJob::dispatch($followers, $postingPrivateKey);
             });
     }
+
+    
 }

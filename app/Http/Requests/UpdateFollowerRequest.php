@@ -33,12 +33,9 @@ class UpdateFollowerRequest extends FormRequest
         return [
             'id' => ['required'],
             'isEnable' => ['required', 'boolean'], // enable
-            'votingType' => ['required', 'in:scaled,fixed'], // voting_type
-            'type' => ['required', 'in:fanbase,curation,downvote'], // follower_type
+            'votingType' => ['required_if:trailerType,curation,downvote', 'in:scaled,fixed'], // voting_type
+            'trailerType' => ['required', 'in:curation,downvote,upvote_comment,upvote_post'], // trailer_type
             'weight' => ['required'], // weight
-            'afterMin' => ['required'], // after_min
-            'dailyLimit' => ['required'],
-            'limitLeft' => ['required'],
         ];
     }
 }

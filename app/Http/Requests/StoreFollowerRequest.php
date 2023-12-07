@@ -25,8 +25,7 @@ class StoreFollowerRequest extends FormRequest
     {
         return [
             'userId' => ['required'],
-            'type' => ['required', 'in:fanbase,curation,downvote,upvote_comment,upvote_post'],
-
+            'trailerType' => ['required', 'in:curation,downvote,upvote_comment,upvote_post'],
             'weight' => ['required_if:type,upvote_comment,upvote_post', 'numeric'],
         ];
     }

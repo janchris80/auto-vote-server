@@ -25,7 +25,7 @@ class UpdateTrailerRequest extends FormRequest
     {
         return [
             'description' => ['required'],
-            'type' => ['required', 'in:curation,downvote'],
+            'trailerType' => ['required', 'in:curation,downvote,upvote_comment,upvote_post'],
             'id' => ['required']
         ];
     }

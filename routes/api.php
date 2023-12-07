@@ -49,16 +49,8 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::post('account/votes', [HiveController::class, 'votes']);
     Route::post('account/search', [HiveController::class, 'searchAccount']);
 
-    Route::get('/following/curation', [FollowerController::class, 'getFollowingCuration']);
-    Route::get('/following/downvote', [FollowerController::class, 'getFollowingDownvote']);
-    Route::get('/following/upvote-comment', [FollowerController::class, 'getFollowingUpvoteComment']);
-    Route::get('/following/upvote-post', [FollowerController::class, 'getFollowingUpvotePost']);
-
-    Route::get('/popular/curation', [FollowerController::class, 'getPopularCuration']);
-    Route::get('/popular/downvote', [FollowerController::class, 'getPopularDownvote']);
-    Route::get('/popular/upvote-comment', [FollowerController::class, 'getPopularUpvoteComment']);
-    Route::get('/popular/upvote-post', [FollowerController::class, 'getPopularUpvotePost']);
-
+    Route::get('/following', [FollowerController::class, 'getFollowing']);
+    Route::get('/popular', [FollowerController::class, 'getPopular']);
 
     Route::post('/followers/follow', [FollowerController::class, 'follow']);
     Route::post('/followers/unfollow', [FollowerController::class, 'unfollow']);
@@ -71,7 +63,6 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
 
     Route::apiResource('/curations', CurationController::class);
     Route::apiResource('/followers', FollowerController::class);
-    Route::apiResource('/hives', HiveController::class);
 
     Route::apiResource('upvote-comments', UpvotedCommentController::class);
     Route::apiResource('upvoted-comments', UpvotedCommentController::class);

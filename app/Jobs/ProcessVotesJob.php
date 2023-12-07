@@ -44,83 +44,7 @@ class ProcessVotesJob implements ShouldQueue
         Log::info("ProcessVotesJob completed in " . (microtime(true) - $startTime) . " seconds");
     }
 
-    private function updateFollowerProcessingStatus($followerId, $status)
-    {
-        // Efficiently update the processing status of the follower
-        Follower::where('id', $followerId)
-            ->update(['is_being_processed' => $status]);
-    }
 
-
-    protected function canMakeRequest()
-    {
-        return !Cache::has('last_api_request_time');
-    }
-
-    protected function makeHttpRequest($data)
-    {
-        // Replace with your actual HTTP request logic
-        return Http::post('https://rpc.d.buzz/', $data)->json()['result'] ?? [];
-    }
-
-    protected function broadcastVote($vote, $postingPrivateKey, $hive)
-    {
-        $result = $hive->broadcast($postingPrivateKey, 'vote', [
-            $vote->voter,      // voter
-            $vote->author,     // author
-            $vote->permlink,   // permlink
-            $vote->weight      // weight
-        ]);
-    }
-
-    protected function calculateVotingWeight($userWeightOption, $authorWeight, $votingType)
-    {
-        $convertHivePercentage = 10000; // 100%
-        $percentage = $userWeightOption; // 1%
-        $baseValue = $authorWeight; // 13%
-        $method = strtolower($votingType);
-        $result = 0;
-
-        if ($method === 'fixed') {
-            $result = $percentage;
-        }
-
-        if ($method === 'scaled') {
-            $result = (($percentage / $convertHivePercentage) * $baseValue);
-        }
-
-        return intval($result);
-    }
-
-    protected function processAccountCurrentMana($account)
-    {
-        // Extracting and processing account details
-        $delegated = floatval(str_replace('VESTS', '', $account['delegated_vesting_shares']));
-        $received = floatval(str_replace('VESTS', '', $account['received_vesting_shares']));
-        $vesting = floatval(str_replace('VESTS', '', $account['vesting_shares']));
-        $withdrawRate = 0;
-
-        if (intval(str_replace('VESTS', '', $account['vesting_withdraw_rate'])) > 0) {
-            $withdrawRate = min(
-                intval(str_replace('VESTS', '', $account['vesting_withdraw_rate'])),
-                intval(($account['to_withdraw'] - $account['withdrawn']) / 1000000)
-            );
-        }
-
-        $totalvest = $vesting + $received - $delegated - $withdrawRate;
-        $maxMana = $totalvest * pow(10, 6);
-        $delta = time() - $account['voting_manabar']['last_update_time'];
-        $current_mana = $account['voting_manabar']['current_mana'] + ($delta * $maxMana / 432000);
-        $percentage = round($current_mana / $maxMana * 10000);
-
-        if (!is_finite($percentage)) $percentage = 0;
-        if ($percentage > 10000) $percentage = 10000;
-        elseif ($percentage < 0) $percentage = 0;
-
-        $percent = number_format($percentage / 100, 2);
-
-        return intval($percentage);
-    }
 
     protected function processFollower($follower, $hive)
     {
@@ -211,7 +135,7 @@ class ProcessVotesJob implements ShouldQueue
 
                                 if (!$votes) {
                                     $data[] = $vote;
-                                    $this->broadcastVote((object)$vote, $this->postingPrivateKey, $hive);
+                                    // $this->broadcastVote((object)$vote, $this->postingPrivateKey, $hive);
                                 }
                                 // Cache the timestamp of the request
                                 Cache::put('last_api_request_time.condenser_api.get_active_votes', now(), 60); // 180 seconds cooldown = 3 minutes
@@ -282,10 +206,87 @@ class ProcessVotesJob implements ShouldQueue
                 Log::warning("Rate limit hit for condenser_api.get_accounts, delaying the request for follower: " . $follower->id);
             }
 
-            $this->updateFollowerProcessingStatus($follower->id, false);
+            // $this->updateFollowerProcessingStatus($follower->id, false);
         } catch (\Exception $e) {
             Log::error("Job failed for follower " . $follower->id . ": " . $e->getMessage());
-            $this->updateFollowerProcessingStatus($follower->id, false);
+            // $this->updateFollowerProcessingStatus($follower->id, false);
         }
+    }
+
+    private function updateFollowerProcessingStatus($followerId, $status)
+    {
+        Follower::where('id', $followerId)
+            ->update(['is_being_processed' => $status]);
+    }
+
+
+    protected function canMakeRequest()
+    {
+        return !Cache::has('last_api_request_time');
+    }
+
+    protected function makeHttpRequest($data)
+    {
+        // Replace with your actual HTTP request logic
+        return Http::post('https://rpc.d.buzz/', $data)->json()['result'] ?? [];
+    }
+
+    protected function broadcastVote($vote, $postingPrivateKey, $hive)
+    {
+        $result = $hive->broadcast($postingPrivateKey, 'vote', [
+            $vote->voter,      // voter
+            $vote->author,     // author
+            $vote->permlink,   // permlink
+            $vote->weight      // weight
+        ]);
+    }
+
+    protected function calculateVotingWeight($userWeightOption, $authorWeight, $votingType)
+    {
+        $convertHivePercentage = 10000; // 100%
+        $percentage = $userWeightOption; // 1%
+        $baseValue = $authorWeight; // 13%
+        $method = strtolower($votingType);
+        $result = 0;
+
+        if ($method === 'fixed') {
+            $result = $percentage;
+        }
+
+        if ($method === 'scaled') {
+            $result = (($percentage / $convertHivePercentage) * $baseValue);
+        }
+
+        return intval($result);
+    }
+
+    protected function processAccountCurrentMana($account)
+    {
+        // Extracting and processing account details
+        $delegated = floatval(str_replace('VESTS', '', $account['delegated_vesting_shares']));
+        $received = floatval(str_replace('VESTS', '', $account['received_vesting_shares']));
+        $vesting = floatval(str_replace('VESTS', '', $account['vesting_shares']));
+        $withdrawRate = 0;
+
+        if (intval(str_replace('VESTS', '', $account['vesting_withdraw_rate'])) > 0) {
+            $withdrawRate = min(
+                intval(str_replace('VESTS', '', $account['vesting_withdraw_rate'])),
+                intval(($account['to_withdraw'] - $account['withdrawn']) / 1000000)
+            );
+        }
+
+        $totalvest = $vesting + $received - $delegated - $withdrawRate;
+        $maxMana = $totalvest * pow(10, 6);
+        $delta = time() - $account['voting_manabar']['last_update_time'];
+        $current_mana = $account['voting_manabar']['current_mana'] + ($delta * $maxMana / 432000);
+        $percentage = round($current_mana / $maxMana * 10000);
+
+        if (!is_finite($percentage)) $percentage = 0;
+        if ($percentage > 10000) $percentage = 10000;
+        elseif ($percentage < 0) $percentage = 0;
+
+        $percent = number_format($percentage / 100, 2);
+
+        return intval($percentage);
     }
 }

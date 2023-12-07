@@ -25,6 +25,7 @@ class SearchUsernameRequest extends FormRequest
     {
         return [
             'username' => ['required', 'string', 'min:2', 'max:255'],
+            'trailerType' => ['required', 'in:curation,downvote,upvote_comment,upvote_post'],
         ];
     }
 }

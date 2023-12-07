@@ -25,7 +25,7 @@ class UnfollowFollowerRequest extends FormRequest
     {
         return [
             'userId' => ['required'],
-            'type' => ['required', 'in:fanbase,curation,downvote'],
+            'trailerType' => ['required', 'in:curation,downvote,upvote_comment,upvote_post'],
         ];
     }
 }

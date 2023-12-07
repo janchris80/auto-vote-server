@@ -79,23 +79,23 @@ class AuthController extends Controller
         $userId = auth()->id();
         $user = User::find($userId);
 
-        if ($request->type === 'upvote') {
+        if ($request->requestType === 'upvote') {
             $user->limit_upvote_mana = $request->limitPower * 100;
         }
 
-        if ($request->type === 'downvote') {
+        if ($request->requestType === 'downvote') {
             $user->limit_downvote_mana = $request->limitPower * 100;
         }
 
-        if ($request->type === 'is_auto_claim_reward') {
+        if ($request->requestType === 'is_auto_claim_reward') {
             $user->is_auto_claim_reward = $request->isAutoClaimReward;
         }
 
-        if ($request->type === 'is_enable') {
+        if ($request->requestType === 'is_enable') {
             $user->is_enable = $request->isEnable;
         }
 
-        $user->is_pause = $request->isPause;
+        $user->is_pause = $request->isPause ? true : false;
         $user->save();
 
         return $this->success(new UserResource($user));

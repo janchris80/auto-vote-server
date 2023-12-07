@@ -21,6 +21,7 @@ class FollowingResource extends JsonResource
             "followersCount" => $this->followersCount()->count(),
             'weight' => $this->follower->weight,
             'votingType' => $this->follower->voting_type,
+            'isEnable' => $this->follower->is_enable,
         ];
     }
 }
