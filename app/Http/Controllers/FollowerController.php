@@ -136,7 +136,7 @@ class FollowerController extends Controller
 
         $votingType = in_array($request->trailerType, ['upvote_comment', 'upvote_post'])
             ? 'fixed'
-            : $request->votingType;
+            : 'scaled';
 
         if ($trailer) {
             $follower = Follower::create([
