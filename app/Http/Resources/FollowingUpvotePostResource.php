@@ -4,7 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class FollowingResource extends JsonResource
+class FollowingUpvotePostResource extends JsonResource
 {
     /**
      * Transform the resource into an array.
@@ -18,9 +18,8 @@ class FollowingResource extends JsonResource
             "id" => $this->follower->id,
             "username" => $this->username,
             "userId" => $this->id,
-            "followersCount" => $this->followersCount()->count(),
+            // "followersCount" => $this->follower()->count(),
             'weight' => $this->follower->weight,
-            'votingType' => $this->follower->voting_type,
         ];
     }
 }

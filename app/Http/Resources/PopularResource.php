@@ -15,13 +15,12 @@ class PopularResource extends JsonResource
     public function toArray($request)
     {
         return [
-            'id' => (string)$this->id,
-            'username' => $this->user->username,
-            'userId' => $this->user->id,
-            'description' => $this->description,
-            'followersCount' => optional($this->user)->followers_count_count,
-            'isFollowed' => optional($this->user)->isFollowed,
-            // 'followers' => FollowerResource::collection($this->followings),
+            'id' => $this->id,
+            'username' => $this->username,
+            'userId' => $this->id,
+            'description' => $this->trailer->description,
+            'followersCount' => $this->followers_count,
+            'isFollowed' => $this->isFollowed,
         ];
     }
 }

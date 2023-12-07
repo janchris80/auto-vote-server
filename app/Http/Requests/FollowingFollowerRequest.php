@@ -24,7 +24,7 @@ class FollowingFollowerRequest extends FormRequest
     public function rules()
     {
         return [
-            'type' => ['required', 'in:fanbase,curation,downvote'],
+            'type' => ['required', 'in:fanbase,curation,downvote,upvote_comment'],
         ];
     }
 }

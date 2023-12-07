@@ -5,6 +5,8 @@ use App\Http\Controllers\CurationController;
 use App\Http\Controllers\FollowerController;
 use App\Http\Controllers\HiveController;
 use App\Http\Controllers\TrailerController;
+use App\Http\Controllers\UpvotedCommentController;
+use App\Models\UpvotedComment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
@@ -30,6 +32,7 @@ Route::get('/status', function () {
         // Add more information as needed
     ];
 });
+
 // public route
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -46,9 +49,17 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::post('account/votes', [HiveController::class, 'votes']);
     Route::post('account/search', [HiveController::class, 'searchAccount']);
 
+    Route::get('/following/curation', [FollowerController::class, 'getFollowingCuration']);
+    Route::get('/following/downvote', [FollowerController::class, 'getFollowingDownvote']);
+    Route::get('/following/upvote-comment', [FollowerController::class, 'getFollowingUpvoteComment']);
+    Route::get('/following/upvote-post', [FollowerController::class, 'getFollowingUpvotePost']);
 
-    Route::post('/popular', [FollowerController::class, 'popular']);
-    Route::post('/following', [FollowerController::class, 'following']);
+    Route::get('/popular/curation', [FollowerController::class, 'getPopularCuration']);
+    Route::get('/popular/downvote', [FollowerController::class, 'getPopularDownvote']);
+    Route::get('/popular/upvote-comment', [FollowerController::class, 'getPopularUpvoteComment']);
+    Route::get('/popular/upvote-post', [FollowerController::class, 'getPopularUpvotePost']);
+
+
     Route::post('/followers/follow', [FollowerController::class, 'follow']);
     Route::post('/followers/unfollow', [FollowerController::class, 'unfollow']);
 
@@ -61,4 +72,7 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::apiResource('/curations', CurationController::class);
     Route::apiResource('/followers', FollowerController::class);
     Route::apiResource('/hives', HiveController::class);
+
+    Route::apiResource('upvote-comments', UpvotedCommentController::class);
+    Route::apiResource('upvoted-comments', UpvotedCommentController::class);
 });

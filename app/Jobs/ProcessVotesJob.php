@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Models\Follower;
-use App\Traits\DiscordTrait;
 use Carbon\Carbon;
 use Hive\Hive;
 use Illuminate\Bus\Queueable;
@@ -12,7 +11,6 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -31,46 +29,28 @@ class ProcessVotesJob implements ShouldQueue
         $this->postingPrivateKey = $postingPrivateKey;
     }
 
-
     public function handle()
     {
         $startTime = microtime(true); // Start timer
-        Log::info("Starting ProcessVotesJob for followers chunk: " . count($this->followers));
+        Log::info("Starting ProcessVotesJob for " . count($this->followers) . " followers");
+
         $hive = new Hive();
-        // broadcastVotes logic here
+
         foreach ($this->followers as $follower) {
-            // Database lock check
-            DB::transaction(function () use ($follower, $hive) {
-                $freshFollower = Follower::find($follower->id);
-
-                if ($freshFollower->is_being_processed) {
-                    return;
-                }
-
-                $freshFollower->is_being_processed = true;
-                $freshFollower->save();
-
-                try {
-                    // Main job logic
-                    Log::info("Process starting for " . $follower->follower->username);
-                    $this->processFollower($freshFollower, $hive);
-                    Log::info("Processing done for " . $follower->follower->username);
-
-                    $freshFollower->is_being_processed = false;
-                    $freshFollower->save();
-                } catch (\Exception $e) {
-                    Log::error("Job failed for follower " . $freshFollower->id . ": " . $e->getMessage());
-                    $freshFollower->is_being_processed = false;
-                    $freshFollower->save();
-                }
-            });
+            $this->processFollower($follower, $hive);
+            unset($follower);
         };
-        Log::info("ProcessVotesJob completed successfully");
-        $endTime = microtime(true); // End timer
-        $duration = $endTime - $startTime; // Calculate duration
 
-        Log::info("Total time taken: {$duration} seconds");
+        Log::info("ProcessVotesJob completed in " . (microtime(true) - $startTime) . " seconds");
     }
+
+    private function updateFollowerProcessingStatus($followerId, $status)
+    {
+        // Efficiently update the processing status of the follower
+        Follower::where('id', $followerId)
+            ->update(['is_being_processed' => $status]);
+    }
+
 
     protected function canMakeRequest()
     {
@@ -91,8 +71,6 @@ class ProcessVotesJob implements ShouldQueue
             $vote->permlink,   // permlink
             $vote->weight      // weight
         ]);
-
-        Log::info('Voting result: ', $result);
     }
 
     protected function calculateVotingWeight($userWeightOption, $authorWeight, $votingType)
@@ -146,169 +124,168 @@ class ProcessVotesJob implements ShouldQueue
 
     protected function processFollower($follower, $hive)
     {
-        // Place your job's logic here
-        $currentDateTime = Carbon::now('Asia/Manila');
-        $newDateTime = $currentDateTime->addMinutes(70);
-        $formattedTime = $newDateTime->format('Y-m-d H:i:s');
-        $lastProcessedTxId = -1;
-        $data = [];
-        $isLimitted = false;
+        try {
+            $currentDateTime = Carbon::now('Asia/Manila');
+            $newDateTime = $currentDateTime->addMinutes(70);
+            $formattedTime = $newDateTime->format('Y-m-d H:i:s');
+            $lastProcessedTxId = -1;
+            $data = [];
+            $isLimitted = false;
 
-        $discordWebhookUrl = $follower->follower->discord_webhook_url;
-        $username = $follower->follower->username;
-        $userId = $follower->follower->id;
-        $limitMana = $follower->follower->limit_upvote_mana;
-        $accountHistories = [];
-        $voteOps = [];
+            $discordWebhookUrl = $follower->follower->discord_webhook_url;
+            $username = $follower->follower->username;
+            $userId = $follower->follower->id;
+            $limitMana = $follower->follower->limit_upvote_mana;
+            $accountHistories = [];
+            $voteOps = [];
 
-        if ($this->canMakeRequest()) {
-            $account = $this->makeHttpRequest([
-                'jsonrpc' => '2.0',
-                'method' => 'condenser_api.get_accounts',
-                'params' => [[$username]], //
-                'id' => 1,
-            ]);
-            // Process the response
-            if (!empty($account)) {
-                $currentMana = $this->processAccountCurrentMana($account[0]);
-                $isLimitted = intval($currentMana) < intval($limitMana);
-            }
-
-            $currentManaText = "Your mana (" . ($currentMana / 100) < ($limitMana / 100) . ") is low, can't process a vote.";
-
-
-            if (!$isLimitted) {
-                $currentManaText = "Your mana (" . ($currentMana / 100) < ($limitMana / 100) . ") is high, can process a vote";
-                $accountWatcher = $follower->user->username;
-                $method = $follower->voting_type;
-                $userWeight = $follower->weight;
-
-                if ($this->canMakeRequest()) {
-                    // Process the response
-                    $accountHistories = $this->makeHttpRequest([
-                        'jsonrpc' => '2.0',
-                        'method' => 'condenser_api.get_account_history',
-                        'params' => [$accountWatcher, -1, 100], //
-                        'id' => 1,
-                    ]);
-
-                    $voteOps = collect($accountHistories)
-                        ->filter(function ($tx) use ($lastProcessedTxId) {
-                            return $tx[0] > $lastProcessedTxId;
-                        })
-                        ->map(function ($tx) use (&$lastProcessedTxId) {
-                            $lastProcessedTxId = $tx[0];
-                            return $tx[1]['op'];
-                        })
-                        ->filter(function ($op) use ($accountWatcher) {
-                            return $op[0] === 'vote' && $op[1]['voter'] === $accountWatcher;
-                        });
-
-
-                    foreach ($voteOps as $voteOp) {
-                        $postAuthor = $voteOp[1]['author'];
-                        $postPermlink = $voteOp[1]['permlink'];
-                        $postWeight = $voteOp[1]['weight'];
-                        $weight = $this->calculateVotingWeight($userWeight, $postWeight, $method);
-
-                        $vote = [
-                            'voter' => $username,
-                            'author' => $postAuthor,
-                            'permlink' => $postPermlink,
-                            'weight' => $weight,
-                        ];
-
-                        // Example of an HTTP request with rate limiting
-                        if ($this->canMakeRequest()) {
-                            $activeVotes = $this->makeHttpRequest([
-                                'jsonrpc' => '2.0',
-                                'method' => 'condenser_api.get_active_votes',
-                                'params' => [$postAuthor, $postPermlink],
-                                'id' => 1,
-                            ]);
-                            // Process the response
-                            $votes = collect($activeVotes)
-                                ->contains(function ($vote) use ($username) {
-                                    return $vote['voter'] === $username;
-                                });
-
-                            if (!$votes) {
-                                $data[] = $vote;
-                                $this->broadcastVote((object)$vote, $this->postingPrivateKey, $hive);
-                            }
-                            // Cache the timestamp of the request
-                            Cache::put('last_api_request_time.condenser_api.get_active_votes', now(), 60); // 180 seconds cooldown = 3 minutes
-                        } else {
-                            Log::warning("Rate limit hit condenser_api.get_active_votes, delaying the request for follower: " . $follower->id);
-                        }
-                    }
-                    // Cache the timestamp of the request
-                    Cache::put('last_api_request_time.condenser_api.get_account_history', now(), 60); // 60 seconds cooldown
-                } else {
-                    Log::warning("Rate limit hit for condenser_api.get_account_history, delaying the request for follower: " . $follower->id);
+            if ($this->canMakeRequest()) {
+                $account = $this->makeHttpRequest([
+                    'jsonrpc' => '2.0',
+                    'method' => 'condenser_api.get_accounts',
+                    'params' => [[$username]], //
+                    'id' => 1,
+                ]);
+                // Process the response
+                if (!empty($account)) {
+                    $currentMana = $this->processAccountCurrentMana($account[0]);
+                    $isLimitted = intval($currentMana) < intval($limitMana);
                 }
+
+                $currentManaText = "Your mana (" . ($currentMana / 100) < ($limitMana / 100) . ") is low, can't process a vote.";
+
+                if (!$isLimitted) {
+                    $currentManaText = "Your mana (" . ($currentMana / 100) < ($limitMana / 100) . ") is high, can process a vote";
+                    $accountWatcher = $follower->user->username;
+                    $method = $follower->voting_type;
+                    $userWeight = $follower->weight;
+
+                    if ($this->canMakeRequest()) {
+                        // Process the response
+                        $accountHistories = $this->makeHttpRequest([
+                            'jsonrpc' => '2.0',
+                            'method' => 'condenser_api.get_account_history',
+                            'params' => [$accountWatcher, -1, 100], //
+                            'id' => 1,
+                        ]);
+
+                        $voteOps = collect($accountHistories)
+                            ->filter(function ($tx) use ($lastProcessedTxId) {
+                                return $tx[0] > $lastProcessedTxId;
+                            })
+                            ->map(function ($tx) use (&$lastProcessedTxId) {
+                                $lastProcessedTxId = $tx[0];
+                                return $tx[1]['op'];
+                            })
+                            ->filter(function ($op) use ($accountWatcher) {
+                                return $op[0] === 'vote' && $op[1]['voter'] === $accountWatcher;
+                            });
+
+
+                        foreach ($voteOps as $voteOp) {
+                            $postAuthor = $voteOp[1]['author'];
+                            $postPermlink = $voteOp[1]['permlink'];
+                            $postWeight = $voteOp[1]['weight'];
+                            $weight = $this->calculateVotingWeight($userWeight, $postWeight, $method);
+
+                            $vote = [
+                                'voter' => $username,
+                                'author' => $postAuthor,
+                                'permlink' => $postPermlink,
+                                'weight' => $weight,
+                            ];
+
+                            // Example of an HTTP request with rate limiting
+                            if ($this->canMakeRequest()) {
+                                $activeVotes = $this->makeHttpRequest([
+                                    'jsonrpc' => '2.0',
+                                    'method' => 'condenser_api.get_active_votes',
+                                    'params' => [$postAuthor, $postPermlink],
+                                    'id' => 1,
+                                ]);
+                                // Process the response
+                                $votes = collect($activeVotes)
+                                    ->contains(function ($vote) use ($username) {
+                                        return $vote['voter'] === $username;
+                                    });
+
+                                if (!$votes) {
+                                    $data[] = $vote;
+                                    $this->broadcastVote((object)$vote, $this->postingPrivateKey, $hive);
+                                }
+                                // Cache the timestamp of the request
+                                Cache::put('last_api_request_time.condenser_api.get_active_votes', now(), 60); // 180 seconds cooldown = 3 minutes
+                            } else {
+                                Log::warning("Rate limit hit condenser_api.get_active_votes, delaying the request for follower: " . $follower->id);
+                            }
+                        }
+                        // Cache the timestamp of the request
+                        Cache::put('last_api_request_time.condenser_api.get_account_history', now(), 60); // 60 seconds cooldown
+                    } else {
+                        Log::warning("Rate limit hit for condenser_api.get_account_history, delaying the request for follower: " . $follower->id);
+                    }
+                } else {
+                    Log::warning($currentManaText);
+                }
+
+                $countAccountHistories = count($accountHistories ?? []);
+                $countVoteOps = count($voteOps ?? []);
+                $countData = count($data ?? []);
+                $displayData = json_encode($data);
+
+                if ($discordWebhookUrl && $countData) {
+                    $logMessages = <<<LOG
+                    ----------------------------------------------------------
+                    $displayData
+                    ----------------------------------------------------------
+                    LOG;
+
+                    $discordFields = [
+                        [
+                            'name' => 'Current Mana',
+                            'value' => $currentMana / 100 . "% *(hive mana)*",
+                            'inline' => false,
+                        ],
+                        [
+                            'name' => 'Limit Mana',
+                            'value' => $limitMana / 100 . "% *(Settings in auto.vote)*",
+                            'inline' => false,
+                        ],
+                        [
+                            'name' => 'Mana Status',
+                            'value' => $currentManaText,
+                            'inline' => false,
+                        ],
+
+                        [
+                            "name" => "Fetched account history",
+                            "value" => $countAccountHistories,
+                            "inline" => false
+                        ],
+                        [
+                            "name" => "Total voted",
+                            "value" => $countVoteOps,
+                            "inline" => false
+                        ],
+                        [
+                            "name" => "Total voted for this process",
+                            "value" => $countData,
+                            "inline" => false
+                        ],
+                    ];
+
+                    SendDiscordNotificationJob::dispatch($userId, $discordFields, $logMessages);
+                }
+                // Cache the timestamp of the request
+                Cache::put('last_api_request_time.condenser_api.get_accounts', now(), 60); // 180 seconds cooldown = 3 minutes
             } else {
-                Log::warning($currentManaText);
+                Log::warning("Rate limit hit for condenser_api.get_accounts, delaying the request for follower: " . $follower->id);
             }
 
-            Log::info('data', $data);
-            Log::info('Total accountHistories: ' . count($accountHistories ?? []));
-            Log::info('Total voteOps: ' . count($voteOps ?? []));
-            Log::info('Total votes: ' . count($data ?? []));
-            Log::info('Voter: ' . $username);
-
-            $countAccountHistories = count($accountHistories ?? []);
-            $countVoteOps = count($voteOps ?? []);
-            $countData = count($data ?? []);
-            $displayData = json_encode($data);
-
-            if ($discordWebhookUrl && $countData) {
-                $logMessages = <<<LOG
-                ----------------------------------------------------------
-                $displayData
-                ----------------------------------------------------------
-                LOG;
-
-                $discordFields = [
-                    [
-                        'name' => 'Current Mana',
-                        'value' => $currentMana / 100 . "% *(hive mana)*",
-                        'inline' => false,
-                    ],
-                    [
-                        'name' => 'Limit Mana',
-                        'value' => $limitMana / 100 . "% *(Settings in auto.vote)*",
-                        'inline' => false,
-                    ],
-                    [
-                        'name' => 'Mana Status',
-                        'value' => $currentManaText,
-                        'inline' => false,
-                    ],
-
-                    [
-                        "name" => "Fetched account history",
-                        "value" => $countAccountHistories,
-                        "inline" => false
-                    ],
-                    [
-                        "name" => "Total voted",
-                        "value" => $countVoteOps,
-                        "inline" => false
-                    ],
-                    [
-                        "name" => "Total voted for this process",
-                        "value" => $countData,
-                        "inline" => false
-                    ],
-                ];
-
-                SendDiscordNotificationJob::dispatch($userId, $discordFields, $logMessages);
-            }
-            // Cache the timestamp of the request
-            Cache::put('last_api_request_time.condenser_api.get_accounts', now(), 60); // 180 seconds cooldown = 3 minutes
-        } else {
-            Log::warning("Rate limit hit for condenser_api.get_accounts, delaying the request for follower: " . $follower->id);
+            $this->updateFollowerProcessingStatus($follower->id, false);
+        } catch (\Exception $e) {
+            Log::error("Job failed for follower " . $follower->id . ": " . $e->getMessage());
+            $this->updateFollowerProcessingStatus($follower->id, false);
         }
     }
 }
