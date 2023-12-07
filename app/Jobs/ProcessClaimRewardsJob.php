@@ -102,7 +102,7 @@ class ProcessClaimRewardsJob implements ShouldQueue
                 ----------------------------------------------------------
                 LOG;
 
-                SendDiscordNotificationJob::dispatch($userId, [], $logMessages);
+                SendDiscordNotificationJob::dispatch($userId, [], $logMessages)->onQueue('notification');
             }
 
             // Cache the timestamp of the request

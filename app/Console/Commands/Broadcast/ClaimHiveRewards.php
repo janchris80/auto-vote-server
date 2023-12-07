@@ -21,7 +21,7 @@ class ClaimHiveRewards extends Command
             ->where('is_enable', 1)
             ->chunk(100, function ($followers) {
                 // $this->broadcastClaimReward($followers, $postingPrivateKey);
-                ProcessClaimRewardsJob::dispatch($followers);
+                ProcessClaimRewardsJob::dispatch($followers)->onQueue('claim-rewards');
             });
     }
 }
