@@ -1,12 +1,9 @@
 <?php
 
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\CurationController;
 use App\Http\Controllers\FollowerController;
 use App\Http\Controllers\HiveController;
 use App\Http\Controllers\TrailerController;
-use App\Http\Controllers\UpvotedCommentController;
-use App\Models\UpvotedComment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
@@ -61,9 +58,4 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
 
     Route::put('/follower/update', [FollowerController::class, 'update']);
 
-    Route::apiResource('/curations', CurationController::class);
-    Route::apiResource('/followers', FollowerController::class);
-
-    Route::apiResource('upvote-comments', UpvotedCommentController::class);
-    Route::apiResource('upvoted-comments', UpvotedCommentController::class);
 });
