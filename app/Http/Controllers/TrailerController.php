@@ -19,7 +19,7 @@ class TrailerController extends Controller
         $request->validated();
 
         $trailer = Trailer::where('user_id', '=', auth()->id())
-            ->where('type', '=', $request->type)
+            ->where('trailer_type', '=', $request->trailerType)
             ->first();
 
         if (!$trailer) {
@@ -36,7 +36,7 @@ class TrailerController extends Controller
         $trailer = Trailer::create([
             'user_id' => auth()->id(),
             'description' => $request->description,
-            'type' => $request->type,
+            'trailer_type' => $request->trailerType,
         ]);
 
         return $this->success($trailer, 'Trailer create successfully.', 201);
@@ -50,7 +50,7 @@ class TrailerController extends Controller
 
         $trailer->update([
             'description' => $request->description,
-            'type' => $request->type,
+            'trailer_type' => $request->trailerType,
         ]);
 
         return $this->success($trailer, 'Trailer was successfully updated.');

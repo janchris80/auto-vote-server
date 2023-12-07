@@ -16,16 +16,12 @@ class ClaimHiveRewards extends Command
 
     public function handle()
     {
-
-        $postingKey = config('hive.private_key.posting'); // Be cautious with private keys
-        $postingPrivateKey = new PrivateKey($postingKey);
-
         User::query()
             ->where('is_auto_claim_reward', 1)
             ->where('is_enable', 1)
-            ->chunk(100, function ($followers) use ($postingPrivateKey) {
+            ->chunk(100, function ($followers) {
                 // $this->broadcastClaimReward($followers, $postingPrivateKey);
-                ProcessClaimRewardsJob::dispatch($followers, $postingPrivateKey);
+                ProcessClaimRewardsJob::dispatch($followers);
             });
     }
 }

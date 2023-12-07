@@ -13,12 +13,12 @@ class Follower extends Model
         'user_id',
         'follower_id',
         'voting_type', // scaled, fixed = method
-        'follower_type', // curation, downvote, fanbase
+        'trailer_type', // curation, downvote, upvote_comment, upvote_post
         'weight',
-        'after_min',
-        'daily_limit',
-        'limit_left',
-        'enable',
+        'vote_per_day',
+        'vote_per_week',
+        'is_enable',
+        'is_being_processed',
     ];
 
     public function user()

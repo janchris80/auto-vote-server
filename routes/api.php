@@ -5,6 +5,8 @@ use App\Http\Controllers\CurationController;
 use App\Http\Controllers\FollowerController;
 use App\Http\Controllers\HiveController;
 use App\Http\Controllers\TrailerController;
+use App\Http\Controllers\UpvotedCommentController;
+use App\Models\UpvotedComment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
@@ -30,6 +32,7 @@ Route::get('/status', function () {
         // Add more information as needed
     ];
 });
+
 // public route
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -46,9 +49,9 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::post('account/votes', [HiveController::class, 'votes']);
     Route::post('account/search', [HiveController::class, 'searchAccount']);
 
+    Route::get('/following', [FollowerController::class, 'getFollowing']);
+    Route::get('/popular', [FollowerController::class, 'getPopular']);
 
-    Route::post('/popular', [FollowerController::class, 'popular']);
-    Route::post('/following', [FollowerController::class, 'following']);
     Route::post('/followers/follow', [FollowerController::class, 'follow']);
     Route::post('/followers/unfollow', [FollowerController::class, 'unfollow']);
 
@@ -60,5 +63,7 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
 
     Route::apiResource('/curations', CurationController::class);
     Route::apiResource('/followers', FollowerController::class);
-    Route::apiResource('/hives', HiveController::class);
+
+    Route::apiResource('upvote-comments', UpvotedCommentController::class);
+    Route::apiResource('upvoted-comments', UpvotedCommentController::class);
 });

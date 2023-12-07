@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Vote;
+use Hive\Helpers\PrivateKey;
 use Hive\Hive;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -16,27 +17,30 @@ class ProcessUpvoteJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    protected $votes;
     public $tries = 3;
     public $timeout = 120; // in seconds
 
+    public function __construct($votes)
+    {
+        $this->votes = $votes;
+    }
+
     public function handle(): void
     {
-        $postingPrivateKey = config('hive.private_key.posting'); // Be cautious with private keys
+        $postingKey = config('hive.private_key.posting'); // Be cautious with private keys
+        $postingPrivateKey = new PrivateKey($postingKey);
 
-        $votes = Vote::query()
-
-            ->get();
-
-        foreach($votes as $vote) {
+        foreach($this->votes as $vote) {
             try {
-                $this->broadcastVote($vote, $postingPrivateKey);
-                $vote->delete();
+                Log::info('', [$vote]);
+                // $this->broadcastVote($vote, $postingPrivateKey);
+                sleep(1);
+                unset($vote);
             } catch (\Throwable $th) {
                 throw $th;
             }
         }
-
-
     }
 
     protected function broadcastVote($vote, $postingPrivateKey)
@@ -48,6 +52,11 @@ class ProcessUpvoteJob implements ShouldQueue
             $vote->permlink,   // permlink
             $vote->weight      // weight
         ]);
+
+        if (isset($result['trx_id'])) {
+            $vote->is_voted = 1;
+            $vote->save();
+        }
 
         Log::info('Voting result: ', $result);
 

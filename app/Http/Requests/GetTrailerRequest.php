@@ -24,7 +24,7 @@ class GetTrailerRequest extends FormRequest
     public function rules()
     {
         return [
-            'type' => ['required', 'in:curation,downvote'],
+            'trailerType' => ['required', 'in:curation,downvote,upvote_comment,upvote_post'],
         ];
     }
 }

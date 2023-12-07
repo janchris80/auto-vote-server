@@ -16,7 +16,7 @@ return new class extends Migration
         Schema::create('trailers', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id');
-            $table->string('type'); // [curation, downvote]
+            $table->string('trailer_type');
             $table->text('description')->nullable();
 
             $table->timestamps();

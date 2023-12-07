@@ -3,6 +3,8 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+
+use App\Scopes\UserScope;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -10,7 +12,7 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, UserScope;
 
     /**
      * The attributes that are mass assignable.
@@ -19,11 +21,11 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'username',
-        'is_enable',
-        'is_auto_claim_reward',
         'limit_upvote_mana',
         'limit_downvote_mana',
+        'is_enable',
         'is_pause',
+        'is_auto_claim_reward',
         'discord_webhook_url',
     ];
 
@@ -52,16 +54,21 @@ class User extends Authenticatable
         return $this->hasMany(Trailer::class, 'user_id');
     }
 
+    public function trailer()
+    {
+        return $this->hasOne(Trailer::class, 'user_id');
+    }
+
     public function curationTrailer()
     {
         return $this->hasOne(Trailer::class, 'user_id')
-            ->where('type', '=', 'curation');
+            ->where('trailer_type', '=', 'curation');
     }
 
     public function downvoteTrailer()
     {
         return $this->hasOne(Trailer::class, 'user_id')
-            ->where('type', '=', 'downvote');
+            ->where('trailer_type', '=', 'downvote');
     }
 
     public function followers()
@@ -96,7 +103,7 @@ class User extends Authenticatable
     public function followingsCurationCount()
     {
         return $this->hasMany(Follower::class, 'follower_id')
-            ->where('follower_type', '=', 'curation')
+            ->where('trailer_type', '=', 'curation')
             ->selectRaw('follower_id, count(*) as count')
             ->groupBy('follower_id');
     }
@@ -104,19 +111,8 @@ class User extends Authenticatable
     public function followingsDownvoteCount()
     {
         return $this->hasMany(Follower::class, 'follower_id')
-            ->where('follower_type', '=', 'downvote')
+            ->where('trailer_type', '=', 'downvote')
             ->selectRaw('follower_id, count(*) as count')
             ->groupBy('follower_id');
-    }
-
-    public function getIsFollowedByCurrentUserAttribute()
-    {
-        if (auth()->check()) {
-            return Follower::where('user_id', $this->id)
-                ->where('follower_id', auth()->id())
-                ->exists();
-        }
-
-        return false;
     }
 }

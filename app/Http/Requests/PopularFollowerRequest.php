@@ -24,7 +24,7 @@ class PopularFollowerRequest extends FormRequest
     public function rules()
     {
         return [
-            'type' => ['required', 'in:fanbase,curation,downvote'],
+            'trailerType' => ['required', 'in:curation,downvote,upvote_comment,upvote_post'],
         ];
     }
 }
