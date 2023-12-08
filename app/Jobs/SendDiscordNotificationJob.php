@@ -19,6 +19,9 @@ class SendDiscordNotificationJob implements ShouldQueue
     private $fields;
     private $message;
 
+    public $tries = 3;
+    public $timeout = 300; // in seconds
+
     public function __construct($userId, $fields, $message)
     {
         $this->fields = $fields;

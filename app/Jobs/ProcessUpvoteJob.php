@@ -19,7 +19,7 @@ class ProcessUpvoteJob implements ShouldQueue
 
     protected $votes;
     public $tries = 3;
-    public $timeout = 120; // in seconds
+    public $timeout = 300; // in seconds
 
     public function __construct($votes)
     {
@@ -33,9 +33,7 @@ class ProcessUpvoteJob implements ShouldQueue
 
         foreach($this->votes as $vote) {
             try {
-                Log::info('', [$vote]);
-                // $this->broadcastVote($vote, $postingPrivateKey);
-                sleep(1);
+                $this->broadcastVote($vote, $postingPrivateKey);
                 unset($vote);
             } catch (\Throwable $th) {
                 throw $th;

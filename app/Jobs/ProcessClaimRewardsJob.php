@@ -21,7 +21,7 @@ class ProcessClaimRewardsJob implements ShouldQueue
 
     protected $followers;
     public $tries = 3;
-    public $timeout = 120; // in seconds
+    public $timeout = 300; // in seconds
 
     public function __construct($followers)
     {;
