@@ -163,7 +163,7 @@ class ProcessVotesJob implements ShouldQueue
                 // Process the response
                 if (!empty($account)) {
                     $currentMana = $this->processAccountCurrentMana($account[0]);
-                    $isLimitted = intval($currentMana) < intval($limitMana);
+                    $isLimitted = intval($currentMana) <= intval($limitMana);
                 }
                 $currentManaText = "Your mana (" . ($currentMana / 100) < ($limitMana / 100) . ") is low, can't process a vote.";
 
@@ -255,7 +255,7 @@ class ProcessVotesJob implements ShouldQueue
                 $countData = count($votes ?? []);
                 $displayData = json_encode($votes);
 
-                if ($discordWebhookUrl) {
+                if ($discordWebhookUrl && $countData) {
                     $logMessages = <<<LOG
                     ----------------------------------------------------------
                     $displayData
@@ -296,7 +296,8 @@ class ProcessVotesJob implements ShouldQueue
                         ],
                     ];
 
-                    SendDiscordNotificationJob::dispatch($userId, $discordFields, $logMessages)->onQueue('notification');
+                    SendDiscordNotificationJob::dispatch($userId, $discordFields, $logMessages)
+                        ->onQueue('notification');
                 }
                 // Cache the timestamp of the request
                 // Cache::put('last_api_request_time.condenser_api.get_accounts', now(), 60); // 180 seconds cooldown = 3 minutes
