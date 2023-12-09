@@ -73,7 +73,7 @@ class ProcessUpvoteJob implements ShouldQueue
             'params' => [[$username]], //
             'id' => 1,
         ]);
-        $isLimitted = false;
+        $isLimitted = true;
         // Process the response
         if (!empty($account)) {
             $currentMana = $this->processAccountCurrentMana($account[0], $method);
