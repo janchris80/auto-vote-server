@@ -144,11 +144,12 @@ class ProcessUpvoteJob implements ShouldQueue
     protected function broadcastVote($vote, $postingPrivateKey)
     {
         $hive = new Hive();
+        $weight = $vote->method === 'downvote' ? intval(-$vote->weight) : intval($vote->weight);
         $result = $hive->broadcast($postingPrivateKey, 'vote', [
             $vote->voter,      // voter
             $vote->author,     // author
             $vote->permlink,   // permlink
-            $vote->weight      // weight
+            $weight,           // weight
         ]);
 
         if (isset($result['trx_id'])) {
