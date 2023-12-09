@@ -3,9 +3,6 @@
 namespace App\Jobs;
 
 use App\Models\Follower;
-use App\Models\Vote;
-use Carbon\Carbon;
-use Hive\Hive;
 use Illuminate\Bus\Queueable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Queue\InteractsWithQueue;
@@ -101,34 +98,31 @@ class ProcessVotesJob implements ShouldQueue
         return collect($response);
     }
 
-    protected function processUpvotes($transactions, $usernameToCheck, $userWeight, $method)
+    protected function processUpvotes($transactions, $usernameToCheck, $userWeight, $method, $limitMana)
     {
         $votes = [];
 
         try {
             foreach ($transactions as $tx) {
                 if ($this->canMakeRequest('condenser_api.get_active_votes')) {
-                    $activeVotes = $this->getActiveVotes($tx['author'], $tx['permlink']);
-
-                    $isVoted = $activeVotes->contains('voter', $usernameToCheck);
                     $weight = $this->calculateVotingWeight($userWeight, $tx['weight'], $method);
 
-                    if (!$isVoted) {
-                        $tx['voter'] = $usernameToCheck;
-                        $tx['weight'] = $weight;
-                        $votes[] = $tx;
+                    $tx['voter'] = $usernameToCheck;
+                    $tx['weight'] = $weight;
+                    $tx['limitMana'] = $limitMana;
+                    // $tx['author']
+                    // $tx['permlink']
+                    $votes[] = $tx;
+                    $toVote = collect([
+                        'voter' => $usernameToCheck,
+                        'author' => $tx['author'],
+                        'permlink' => $tx['permlink'],
+                        'weight' => $weight,
+                        'limitMana' => $limitMana,
+                        'method' => $method,
+                    ]);
 
-                        Vote::updateOrCreate(
-                            [
-                                'voter' => $usernameToCheck,
-                                'author' => $tx['author'],
-                                'permlink' => $tx['permlink'],
-                            ],
-                            [
-                                'weight' => $weight,
-                            ]
-                        );
-                    }
+                    ProcessUpvoteJob::dispatch($toVote)->onQueue('voting');
 
                     // Cache::put('last_api_request_time.condenser_api.get_active_votes', now(), 60); // 60 seconds cooldown
                 } else {
@@ -149,7 +143,8 @@ class ProcessVotesJob implements ShouldQueue
             $discordWebhookUrl = $follower->follower->discord_webhook_url;
             $username = $follower->follower->username;
             $userId = $follower->follower->id;
-            $limitMana = $follower->follower->limit_upvote_mana;
+            $method = $follower->trailer_type;
+            $limitMana = $method === 'downvote' ? $follower->follower->limit_downvote_mana : $follower->follower->limit_upvote_mana;
             $accountHistories = [];
             $voteOps = [];
 
@@ -162,7 +157,7 @@ class ProcessVotesJob implements ShouldQueue
                 ]);
                 // Process the response
                 if (!empty($account)) {
-                    $currentMana = $this->processAccountCurrentMana($account[0]);
+                    $currentMana = $this->processAccountCurrentMana($account[0], $method);
                     $isLimitted = intval($currentMana) <= intval($limitMana);
                 }
                 $currentManaText = "Your mana (" . ($currentMana / 100) < ($limitMana / 100) . ") is low, can't process a vote.";
@@ -175,12 +170,13 @@ class ProcessVotesJob implements ShouldQueue
                         // Process the response
                         $history = $this->getAccountHistory($accountWatcher);
 
-                        if (in_array($follower->trailer_type, ['curation', 'dowvote'])) {
+                        if (in_array($follower->trailer_type, ['curation', 'downvote'])) {
                             $this->processUpvotes(
                                 $history,
                                 $username,
                                 $follower->weight,
-                                $follower->voting_type
+                                $follower->voting_type,
+                                $limitMana,
                             );
                         }
 
@@ -188,26 +184,25 @@ class ProcessVotesJob implements ShouldQueue
                             $posts = $this->getAccountPost($accountWatcher);
 
                             foreach ($posts as $post) {
-                                $activeVotesCollection = collect($post['active_votes']);
-                                $isUserFound = $activeVotesCollection->contains('voter', $username);
+                                $votes[] = [
+                                    'voter' => $username,
+                                    'author' => $post['author'],
+                                    'permlink' => $post['permlink'],
+                                    'weight' => $follower->weight,
+                                    'limitMana' => $limitMana,
+                                    'method' => $method,
+                                ];
 
-                                if ($isUserFound) {
-                                    Log::info("upvote_post", [
-                                        'voter' => $username,
-                                        'author' => $post['author'] ?? '',
-                                        'permlink' => $post['permlink'] ?? '',
-                                    ]);
-                                    Vote::updateOrCreate(
-                                        [
-                                            'voter' => $username,
-                                            'author' => $post['author'],
-                                            'permlink' => $post['permlink'],
-                                        ],
-                                        [
-                                            'weight' => $follower->weight,
-                                        ]
-                                    );
-                                }
+                                $toVote = collect([
+                                    'voter' => $username,
+                                    'author' => $post['author'],
+                                    'permlink' => $post['permlink'],
+                                    'weight' => $follower->weight,
+                                    'limitMana' => $limitMana,
+                                    'method' => $method,
+                                ]);
+
+                                ProcessUpvoteJob::dispatch($toVote)->onQueue('voting');
                             }
                         }
 
@@ -219,23 +214,26 @@ class ProcessVotesJob implements ShouldQueue
 
                                 if (count($replies)) {
                                     foreach ($replies as $reply) {
-                                        Log::info('upvote_comment', [
+                                        $votes[] = [
                                             'voter' => $username,
-                                            'author' => $reply['author'] ?? '',
-                                            'permlink' => $reply['permlink'] ?? '',
+                                            'author' => $reply['author'],
+                                            'permlink' => $reply['permlink'],
+                                            'weight' => $follower->weight,
+                                            'limitMana' => $limitMana,
+                                            'method' => $method,
+                                        ];
+
+                                        $toVote = collect([
+                                            'voter' => $username,
+                                            'author' => $reply['author'],
+                                            'permlink' => $reply['permlink'],
+                                            'weight' => $follower->weight,
+                                            'limitMana' => $limitMana,
+                                            'method' => $method,
                                         ]);
 
                                         if ($reply['author'] === $accountWatcher) {
-                                            Vote::updateOrCreate(
-                                                [
-                                                    'voter' => $username,
-                                                    'author' => $reply['author'],
-                                                    'permlink' => $reply['permlink'],
-                                                ],
-                                                [
-                                                    'weight' => $follower->weight,
-                                                ]
-                                            );
+                                            ProcessUpvoteJob::dispatch($toVote)->onQueue('voting');
                                         }
                                     }
                                 }
@@ -349,7 +347,7 @@ class ProcessVotesJob implements ShouldQueue
         return intval($result);
     }
 
-    protected function processAccountCurrentMana($account)
+    protected function processAccountCurrentMana($account, $method)
     {
         // Extracting and processing account details
         $delegated = floatval(str_replace('VESTS', '', $account['delegated_vesting_shares']));
@@ -366,6 +364,16 @@ class ProcessVotesJob implements ShouldQueue
 
         $totalvest = $vesting + $received - $delegated - $withdrawRate;
         $maxMana = $totalvest * pow(10, 6);
+
+        if ($method === 'downvote') {
+            return $this->getDownvoteMana($account, $maxMana);
+        } else {
+            return $this->getUpvoteMana($account, $maxMana);
+        }
+    }
+
+    public function getUpvoteMana($account, $maxMana)
+    {
         $delta = time() - $account['voting_manabar']['last_update_time'];
         $current_mana = $account['voting_manabar']['current_mana'] + ($delta * $maxMana / 432000);
         $percentage = round($current_mana / $maxMana * 10000);
@@ -374,8 +382,28 @@ class ProcessVotesJob implements ShouldQueue
         if ($percentage > 10000) $percentage = 10000;
         elseif ($percentage < 0) $percentage = 0;
 
-        $percent = number_format($percentage / 100, 2);
+        // $percent = number_format($percentage / 100, 2);
 
         return intval($percentage);
+    }
+
+    public function getDownvoteMana($account, $maxMana)
+    {
+        $currentPower = $account['downvote_manabar']['current_mana'];
+        $lastUpdateTime = $account['downvote_manabar']['last_update_time'];
+        $fullRechargeTime = 432000;
+
+        $now = time();
+        $secondsSinceUpdate = $now - $lastUpdateTime;
+
+        $maxMana = // assign the value of maxMana here, same as in your JS code
+
+            $currentDownvotePower = ($currentPower + $secondsSinceUpdate * ($maxMana / $fullRechargeTime)) / $maxMana;
+        $currentDownvotePower = min($currentDownvotePower, 1); // Cap at 100%
+
+        // Convert to percentage and format to 2 decimal places
+        $downvotePowerPercent = number_format($currentDownvotePower * 100, 2);
+
+        return intval($downvotePowerPercent);
     }
 }

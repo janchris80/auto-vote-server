@@ -11,6 +11,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class ProcessUpvoteJob implements ShouldQueue
@@ -31,14 +32,113 @@ class ProcessUpvoteJob implements ShouldQueue
         $postingKey = config('hive.private_key.posting'); // Be cautious with private keys
         $postingPrivateKey = new PrivateKey($postingKey);
 
-        foreach($this->votes as $vote) {
-            try {
+        $vote = (object)$this->votes->all();
+
+        try {
+            $activeVotes = $this->getActiveVotes($vote->voter, $vote->permlink);
+            $isVoted = $activeVotes->contains('voter', $vote->voter);
+
+            if (!$isVoted && !$this->checkAccount($vote->voter, $vote->limitMana, $vote->method)) {
                 $this->broadcastVote($vote, $postingPrivateKey);
-                unset($vote);
-            } catch (\Throwable $th) {
-                throw $th;
             }
+            unset($vote);
+        } catch (\Throwable $th) {
+            throw $th;
         }
+    }
+
+    protected function getActiveVotes($author, $permlink)
+    {
+        $response = $this->makeHttpRequest([
+            'jsonrpc' => '2.0',
+            'method' => 'condenser_api.get_active_votes',
+            'params' => [$author, $permlink],
+            'id' => 1,
+        ]);
+
+        return collect($response);
+    }
+
+    protected function makeHttpRequest($data)
+    {
+        // Replace with your actual HTTP request logic
+        return Http::post('https://rpc.d.buzz/', $data)->json()['result'] ?? [];
+    }
+
+    public function checkAccount($username, $limitMana, $method)
+    {
+        $account = $this->makeHttpRequest([
+            'jsonrpc' => '2.0',
+            'method' => 'condenser_api.get_accounts',
+            'params' => [[$username]], //
+            'id' => 1,
+        ]);
+        $isLimitted = false;
+        // Process the response
+        if (!empty($account)) {
+            $currentMana = $this->processAccountCurrentMana($account[0], $method);
+            $isLimitted = intval($currentMana) <= intval($limitMana);
+        }
+
+        return $isLimitted;
+    }
+
+    protected function processAccountCurrentMana($account, $method)
+    {
+        // Extracting and processing account details
+        $delegated = floatval(str_replace('VESTS', '', $account['delegated_vesting_shares']));
+        $received = floatval(str_replace('VESTS', '', $account['received_vesting_shares']));
+        $vesting = floatval(str_replace('VESTS', '', $account['vesting_shares']));
+        $withdrawRate = 0;
+
+        if (intval(str_replace('VESTS', '', $account['vesting_withdraw_rate'])) > 0) {
+            $withdrawRate = min(
+                intval(str_replace('VESTS', '', $account['vesting_withdraw_rate'])),
+                intval(($account['to_withdraw'] - $account['withdrawn']) / 1000000)
+            );
+        }
+
+        $totalvest = $vesting + $received - $delegated - $withdrawRate;
+        $maxMana = $totalvest * pow(10, 6);
+
+        if ($method === 'downvote') {
+            return $this->getDownvoteMana($account, $maxMana);
+        } else {
+            return $this->getUpvoteMana($account, $maxMana);
+        }
+    }
+
+    public function getUpvoteMana($account, $maxMana)
+    {
+        $delta = time() - $account['voting_manabar']['last_update_time'];
+        $current_mana = $account['voting_manabar']['current_mana'] + ($delta * $maxMana / 432000);
+        $percentage = round($current_mana / $maxMana * 10000);
+
+        if (!is_finite($percentage)) $percentage = 0;
+        if ($percentage > 10000) $percentage = 10000;
+        elseif ($percentage < 0) $percentage = 0;
+
+        // $percent = number_format($percentage / 100, 2);
+
+        return intval($percentage);
+    }
+
+    public function getDownvoteMana($account, $maxMana)
+    {
+        $currentPower = $account['downvote_manabar']['current_mana'];
+        $lastUpdateTime = $account['downvote_manabar']['last_update_time'];
+        $fullRechargeTime = 432000;
+
+        $now = time();
+        $secondsSinceUpdate = $now - $lastUpdateTime;
+
+        $currentDownvotePower = ($currentPower + $secondsSinceUpdate * ($maxMana / $fullRechargeTime)) / $maxMana;
+        $currentDownvotePower = min($currentDownvotePower, 1); // Cap at 100%
+
+        // Convert to percentage and format to 2 decimal places
+        $downvotePowerPercent = number_format($currentDownvotePower * 100, 2);
+
+        return intval($downvotePowerPercent);
     }
 
     protected function broadcastVote($vote, $postingPrivateKey)
@@ -52,12 +152,20 @@ class ProcessUpvoteJob implements ShouldQueue
         ]);
 
         if (isset($result['trx_id'])) {
-            $vote->is_voted = 1;
-            $vote->save();
+            Vote::updateOrCreate(
+                [
+                    'voter' => $vote->voter,
+                    'author' => $vote->author,
+                    'permlink' => $vote->permlink,
+                ],
+                [
+                    'weight' => $vote->weight,
+                    'is_voted' => true,
+                ]
+            );
+            Log::info('Voting result: ', $result);
+        } else {
+            Log::error('Voting result: ', $result);
         }
-
-        Log::info('Voting result: ', $result);
-
-        return $result;
     }
 }
