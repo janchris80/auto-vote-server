@@ -249,12 +249,10 @@ class ProcessVotesJob implements ShouldQueue
                     Log::warning("Mana is not enough");
                 }
 
-                $countAccountHistories = count($accountHistories ?? []);
-                $countVoteOps = count($voteOps ?? []);
                 $countData = count($votes ?? []);
                 $displayData = json_encode($votes);
 
-                if ($discordWebhookUrl && $countData) {
+                if ($discordWebhookUrl && !$isLimitted) {
                     $logMessages = <<<LOG
                     ----------------------------------------------------------
                     $displayData
@@ -276,17 +274,6 @@ class ProcessVotesJob implements ShouldQueue
                             'name' => 'Mana Status',
                             'value' => $currentManaText,
                             'inline' => false,
-                        ],
-
-                        [
-                            "name" => "Fetched account history",
-                            "value" => $countAccountHistories,
-                            "inline" => false
-                        ],
-                        [
-                            "name" => "Total voted",
-                            "value" => $countVoteOps,
-                            "inline" => false
                         ],
                         [
                             "name" => "Total voted for this process",
