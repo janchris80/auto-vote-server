@@ -90,14 +90,14 @@ class HiveController extends Controller
         $userId = auth()->id();
         $response = Http::post('https://rpc.d.buzz/', [
             'jsonrpc' => '2.0',
-            'method' => 'condenser_api.get_accounts',
-            'params' => [[$request->username]],
+            'method' => 'bridge.get_profile',
+            'params' => [
+                'account' => $request->username
+            ],
             'id' => 1,
         ]);
 
-        // $response = Http::get("https://hive.blog/@$username.json");
-
-        $data['hive_user'] = $response->json()['result'][0] ?? [];
+        $data['hive_user'] = $response->json()['result'] ?? [];
 
         if (!empty($data['hive_user'])) {
             $user = User::query()
