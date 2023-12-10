@@ -86,18 +86,6 @@ class ProcessVotesJob implements ShouldQueue
         return $voteOps;
     }
 
-    protected function getActiveVotes($author, $permlink)
-    {
-        $response = $this->makeHttpRequest([
-            'jsonrpc' => '2.0',
-            'method' => 'condenser_api.get_active_votes',
-            'params' => [$author, $permlink],
-            'id' => 1,
-        ]);
-
-        return collect($response);
-    }
-
     protected function processUpvotes($transactions, $usernameToCheck, $userWeight, $method, $limitMana)
     {
         $votes = [];
@@ -160,10 +148,13 @@ class ProcessVotesJob implements ShouldQueue
                     $currentMana = $this->processAccountCurrentMana($account[0], $method);
                     $isLimitted = intval($currentMana) <= intval($limitMana);
                 }
-                $currentManaText = "Your mana (" . ($currentMana / 100) < ($limitMana / 100) . ") is low, can't process a vote.";
+                $currentManaPercentage = $currentMana / 100;
+                $limitManaPercentage = $limitMana / 100;
+
+                $currentManaText = "Your mana (" . $currentManaPercentage <= $limitManaPercentage . ") is low, can't process a vote.";
 
                 if (!$isLimitted) {
-                    $currentManaText = "Your mana (" . ($currentMana / 100) < ($limitMana / 100) . ") is high, can process a vote";
+                    $currentManaText = "Your mana (" . $currentManaPercentage <= $limitManaPercentage . ") is high, can process a vote";
                     $accountWatcher = $follower->user->username;
 
                     if ($this->canMakeRequest('condenser_api.get_account_history')) {
