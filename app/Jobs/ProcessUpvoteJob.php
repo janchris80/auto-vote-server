@@ -29,8 +29,11 @@ class ProcessUpvoteJob implements ShouldQueue
 
     public function handle(): void
     {
+        $hive = new Hive();
         $postingKey = config('hive.private_key.posting'); // Be cautious with private keys
         $postingPrivateKey = new PrivateKey($postingKey);
+
+        Log::debug('Posting', [$postingPrivateKey]);
 
         $vote = (object)$this->votes->all();
 
@@ -39,7 +42,7 @@ class ProcessUpvoteJob implements ShouldQueue
             $isVoted = $activeVotes->contains('voter', $vote->voter);
 
             if (!$isVoted && !$this->checkAccount($vote->voter, $vote->limitMana, $vote->method)) {
-                $this->broadcastVote($vote, $postingPrivateKey);
+                $this->broadcastVote($vote, $postingPrivateKey, $hive);
             }
             unset($vote);
         } catch (\Throwable $th) {
@@ -141,9 +144,8 @@ class ProcessUpvoteJob implements ShouldQueue
         return intval($downvotePowerPercent);
     }
 
-    protected function broadcastVote($vote, $postingPrivateKey)
+    protected function broadcastVote($vote, $postingPrivateKey, $hive)
     {
-        $hive = new Hive();
         $weight = $vote->method === 'downvote' ? intval(-$vote->weight) : intval($vote->weight);
         $result = $hive->broadcast($postingPrivateKey, 'vote', [
             $vote->voter,      // voter

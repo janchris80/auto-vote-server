@@ -184,25 +184,27 @@ class ProcessVotesJob implements ShouldQueue
                             $posts = $this->getAccountPost($accountWatcher);
 
                             foreach ($posts as $post) {
-                                $votes[] = [
-                                    'voter' => $username,
-                                    'author' => $post['author'],
-                                    'permlink' => $post['permlink'],
-                                    'weight' => $follower->weight,
-                                    'limitMana' => $limitMana,
-                                    'method' => $method,
-                                ];
+                                if ($post['author'] === $accountWatcher) {
+                                    $votes[] = [
+                                        'voter' => $username,
+                                        'author' => $post['author'],
+                                        'permlink' => $post['permlink'],
+                                        'weight' => $follower->weight,
+                                        'limitMana' => $limitMana,
+                                        'method' => $method,
+                                    ];
 
-                                $toVote = collect([
-                                    'voter' => $username,
-                                    'author' => $post['author'],
-                                    'permlink' => $post['permlink'],
-                                    'weight' => $follower->weight,
-                                    'limitMana' => $limitMana,
-                                    'method' => $method,
-                                ]);
+                                    $toVote = collect([
+                                        'voter' => $username,
+                                        'author' => $post['author'],
+                                        'permlink' => $post['permlink'],
+                                        'weight' => $follower->weight,
+                                        'limitMana' => $limitMana,
+                                        'method' => $method,
+                                    ]);
 
-                                ProcessUpvoteJob::dispatch($toVote)->onQueue('voting');
+                                    ProcessUpvoteJob::dispatch($toVote)->onQueue('voting');
+                                }
                             }
                         }
 
@@ -214,25 +216,24 @@ class ProcessVotesJob implements ShouldQueue
 
                                 if (count($replies)) {
                                     foreach ($replies as $reply) {
-                                        $votes[] = [
-                                            'voter' => $username,
-                                            'author' => $reply['author'],
-                                            'permlink' => $reply['permlink'],
-                                            'weight' => $follower->weight,
-                                            'limitMana' => $limitMana,
-                                            'method' => $method,
-                                        ];
-
-                                        $toVote = collect([
-                                            'voter' => $username,
-                                            'author' => $reply['author'],
-                                            'permlink' => $reply['permlink'],
-                                            'weight' => $follower->weight,
-                                            'limitMana' => $limitMana,
-                                            'method' => $method,
-                                        ]);
-
                                         if ($reply['author'] === $accountWatcher) {
+                                            $votes[] = [
+                                                'voter' => $username,
+                                                'author' => $reply['author'],
+                                                'permlink' => $reply['permlink'],
+                                                'weight' => $follower->weight,
+                                                'limitMana' => $limitMana,
+                                                'method' => $method,
+                                            ];
+
+                                            $toVote = collect([
+                                                'voter' => $username,
+                                                'author' => $reply['author'],
+                                                'permlink' => $reply['permlink'],
+                                                'weight' => $follower->weight,
+                                                'limitMana' => $limitMana,
+                                                'method' => $method,
+                                            ]);
                                             ProcessUpvoteJob::dispatch($toVote)->onQueue('voting');
                                         }
                                     }

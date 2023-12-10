@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Jobs\ProcessUpvoteJob;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
@@ -31,8 +32,26 @@ class Publish extends Command
     {
         // $this->processBlocks();
 
-        $history = $this->getAccountHistory('dbuzz');
-        $result = $this->processVotes($history, 'iamjco');
+        // $history = $this->getAccountHistory('dbuzz');
+        // $result = $this->processVotes($history, 'iamjco');
+
+        $toVote = collect([
+            'voter' => 'iamjco',
+            'author' => 'iamjco',
+            'permlink' => '4csrbr3tjqpmif38buv7jp',
+            'weight' => 1000,
+            'limitMana' => 10000,
+            'method' => 'curation',
+        ]);
+
+        ProcessUpvoteJob::dispatch($toVote)->onQueue('voting');
+
+        // $data = date('Y-m-d\TH:i:s', strtotime('+' . 60 . ' Seconds'));
+        // dd($data);
+
+        // dd(unpack('V', hex2bin('04d1f344cfc5b0537f82d7af8c61af8d602f89de'), 4)[1]);
+
+        dd($toVote);
 
         // Log::info("", $result);
     }

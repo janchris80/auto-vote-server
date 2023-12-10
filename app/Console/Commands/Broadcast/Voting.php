@@ -24,12 +24,5 @@ class Voting extends Command
             ->chunk(100, function ($followers) {
                 ProcessVotesJob::dispatch($followers)->onQueue('processing');
             });
-
-        // ProcessUpvoteJob::dispatch($votes)->onQueue('voting');
-        Vote::query()
-            ->where('is_voted', '=', 0)
-            ->chunk(100, function ($votes) {
-                ProcessUpvoteJob::dispatch($votes)->onQueue('voting');
-            });
     }
 }

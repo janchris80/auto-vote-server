@@ -4,9 +4,7 @@ namespace App\Console\Commands\Broadcast;
 
 use App\Jobs\ProcessClaimRewardsJob;
 use App\Models\User;
-use Hive\Helpers\PrivateKey;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Log;
 
 class ClaimHiveRewards extends Command
 {
