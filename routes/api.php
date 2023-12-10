@@ -49,6 +49,8 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::get('/following', [FollowerController::class, 'getFollowing']);
     Route::get('/popular', [FollowerController::class, 'getPopular']);
 
+    Route::post('/user/followers', [FollowerController::class, 'getUserFollower']);
+
     Route::post('/followers/follow', [FollowerController::class, 'follow']);
     Route::post('/followers/unfollow', [FollowerController::class, 'unfollow']);
 

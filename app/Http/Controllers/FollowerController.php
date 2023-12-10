@@ -9,6 +9,7 @@ use App\Http\Requests\UpdateFollowerRequest;
 use App\Http\Resources\FollowingResource;
 use App\Http\Resources\FollowingUpvoteCommentResource;
 use App\Http\Resources\FollowingUpvotePostResource;
+use App\Http\Resources\GetUserFollowerResource;
 use App\Http\Resources\PopularResource;
 use App\Models\Trailer;
 use App\Models\User;
@@ -143,7 +144,7 @@ class FollowerController extends Controller
                 "user_id" => $request->userId,
                 "follower_id" => auth()->id(),
                 "trailer_type" => $request->trailerType,
-                "voting_type" =>$votingType,
+                "voting_type" => $votingType,
                 "enable" => true,
                 "weight" => $request->weight ?? 10000, // to get the percent need to 10000 / 100 = 100%
             ]);
@@ -180,6 +181,27 @@ class FollowerController extends Controller
         $follower->save();
 
         return $this->success($follower, 'User was successfully updated.');
+    }
+
+    public function getUserFollower(Request $request)
+    {
+        $username = $request->username;
+        $trailerType = $request->trailerType;
+
+        $followers = Follower::query()
+            ->whereHas('user', function ($query) use ($username) {
+                return $query->where('username', $username);
+            })
+            ->with([
+                'follower' => function ($query) {
+                    return $query->select(['username', 'id']);
+                }
+            ])
+            ->where('trailer_type', $trailerType)
+            ->select(['id', 'user_id', 'follower_id', 'trailer_type', 'weight'])
+            ->get();
+
+        return GetUserFollowerResource::collection($followers);
     }
 
     private function getFollowingsByType($request, $type)
