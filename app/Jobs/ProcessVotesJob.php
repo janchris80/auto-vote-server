@@ -122,6 +122,26 @@ class ProcessVotesJob implements ShouldQueue
         }
     }
 
+    public function checkResourceCredit($username)
+    {
+        $account = $this->makeHttpRequest([
+            'jsonrpc' => '2.0',
+            'method' => 'rc_api.find_rc_accounts',
+            'params' => ['accounts' => [$username]], //
+            'id' => 1,
+        ]);
+
+        $accountData = $account['rc_accounts'][0];
+        $currentMana = $accountData['rc_manabar']['current_mana'];
+        $maxMana = $accountData['max_rc'];
+
+        // Calculate the percentage
+        $percentage = ($currentMana / $maxMana) * 100;
+        $percent = number_format($percentage, 2);
+
+        return (float) $percent > 5;
+    }
+
     protected function processFollower($follower)
     {
         try {
@@ -143,6 +163,10 @@ class ProcessVotesJob implements ShouldQueue
                     'params' => [[$username]], //
                     'id' => 1,
                 ]);
+
+                // check resource credit before processing votes
+                $canVote = $this->checkResourceCredit($username);
+
                 // Process the response
                 if (!empty($account)) {
                     $currentMana = $this->processAccountCurrentMana($account[0], $method);
@@ -153,7 +177,7 @@ class ProcessVotesJob implements ShouldQueue
 
                 $currentManaText = "Your mana (" . $currentManaPercentage <= $limitManaPercentage . ") is low, can't process a vote.";
 
-                if (!$isLimitted) {
+                if (!$isLimitted && $canVote) {
                     $currentManaText = "Your mana (" . $currentManaPercentage <= $limitManaPercentage . ") is high, can process a vote";
                     $accountWatcher = $follower->user->username;
 

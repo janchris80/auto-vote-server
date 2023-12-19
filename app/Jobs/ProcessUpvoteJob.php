@@ -82,14 +82,14 @@ class ProcessUpvoteJob implements ShouldQueue
         ]);
 
         $accountData = $account['rc_accounts'][0];
-        $currentMana = (float) $accountData['rc_manabar']['current_mana'];
-        $maxMana = (float) $accountData['max_rc'];
+        $currentMana = $accountData['rc_manabar']['current_mana'];
+        $maxMana = $accountData['max_rc'];
 
         // Calculate the percentage
         $percentage = ($currentMana / $maxMana) * 100;
         $percent = number_format($percentage, 2);
 
-        return $percent > 2;
+        return (float) $percent > 5;
     }
 
     public function checkAccount($username, $limitMana, $method)

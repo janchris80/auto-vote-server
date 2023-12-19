@@ -55,7 +55,7 @@ class Publish extends Command
 
         // Log::info("", $result);
 
-        $qweqwe = $this->checkResourceCredit('dbuzz');
+        $qweqwe = $this->checkResourceCredit('whoswho');
         dump($qweqwe);
     }
 
@@ -75,14 +75,15 @@ class Publish extends Command
         ]);
 
         $accountData = $account['rc_accounts'][0];
-        $currentMana = (float) $accountData['rc_manabar']['current_mana'];
-        $maxMana = (float) $accountData['max_rc'];
+        $currentMana = $accountData['rc_manabar']['current_mana'];
+        $maxMana = $accountData['max_rc'];
 
         // Calculate the percentage
         $percentage = ($currentMana / $maxMana) * 100;
         $percent = number_format($percentage, 2);
+        dump((float) $percent, $percentage);
 
-        return $percent > 5;
+        return (float) $percent > 5;
     }
 
     function getAccountHistory($username)
