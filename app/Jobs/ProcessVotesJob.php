@@ -182,9 +182,9 @@ class ProcessVotesJob implements ShouldQueue
 
                     if ($this->canMakeRequest('condenser_api.get_account_history')) {
                         // Process the response
-                        $history = $this->getAccountHistory($accountWatcher);
 
                         if (in_array($follower->trailer_type, ['curation', 'downvote'])) {
+                            $history = $this->getAccountHistory($accountWatcher);
                             $this->processUpvotes(
                                 $history,
                                 $username,
@@ -266,7 +266,7 @@ class ProcessVotesJob implements ShouldQueue
                 $countData = count($votes ?? []);
                 $displayData = json_encode($votes);
 
-                if ($discordWebhookUrl && !$isLimitted && $canVote) {
+                if ($discordWebhookUrl && !$isLimitted && $canVote && $countData) {
                     $logMessages = <<<LOG
                     ----------------------------------------------------------
                     $displayData
