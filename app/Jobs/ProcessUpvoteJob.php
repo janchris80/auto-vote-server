@@ -41,7 +41,11 @@ class ProcessUpvoteJob implements ShouldQueue
             $activeVotes = $this->getActiveVotes($vote->voter, $vote->permlink);
             $isVoted = $activeVotes->contains('voter', $vote->voter);
 
-            if (!$isVoted && !$this->checkAccount($vote->voter, $vote->limitMana, $vote->method)) {
+            $canVote = !$isVoted
+                && !$this->checkAccount($vote->voter, $vote->limitMana, $vote->method)
+                && $this->checkResourceCredit($vote->voter);
+
+            if ($canVote) {
                 $this->broadcastVote($vote, $postingPrivateKey, $hive);
             }
             unset($vote);
@@ -66,6 +70,26 @@ class ProcessUpvoteJob implements ShouldQueue
     {
         // Replace with your actual HTTP request logic
         return Http::post('https://rpc.d.buzz/', $data)->json()['result'] ?? [];
+    }
+
+    public function checkResourceCredit($username)
+    {
+        $account = $this->makeHttpRequest([
+            'jsonrpc' => '2.0',
+            'method' => 'rc_api.find_rc_accounts',
+            'params' => ['accounts' => [$username]], //
+            'id' => 1,
+        ]);
+
+        $accountData = $account['rc_accounts'][0];
+        $currentMana = (float) $accountData['rc_manabar']['current_mana'];
+        $maxMana = (float) $accountData['max_rc'];
+
+        // Calculate the percentage
+        $percentage = ($currentMana / $maxMana) * 100;
+        $percent = number_format($percentage, 2);
+
+        return $percent > 2;
     }
 
     public function checkAccount($username, $limitMana, $method)

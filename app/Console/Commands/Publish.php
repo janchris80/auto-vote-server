@@ -35,25 +35,54 @@ class Publish extends Command
         // $history = $this->getAccountHistory('dbuzz');
         // $result = $this->processVotes($history, 'iamjco');
 
-        $toVote = collect([
-            'voter' => 'iamjco',
-            'author' => 'iamjco',
-            'permlink' => '4csrbr3tjqpmif38buv7jp',
-            'weight' => 1000,
-            'limitMana' => 10000,
-            'method' => 'curation',
-        ]);
+        // $toVote = collect([
+        //     'voter' => 'iamjco',
+        //     'author' => 'iamjco',
+        //     'permlink' => '4csrbr3tjqpmif38buv7jp',
+        //     'weight' => 1000,
+        //     'limitMana' => 10000,
+        //     'method' => 'curation',
+        // ]);
 
-        ProcessUpvoteJob::dispatch($toVote)->onQueue('voting');
+        // ProcessUpvoteJob::dispatch($toVote)->onQueue('voting');
 
         // $data = date('Y-m-d\TH:i:s', strtotime('+' . 60 . ' Seconds'));
         // dd($data);
 
         // dd(unpack('V', hex2bin('04d1f344cfc5b0537f82d7af8c61af8d602f89de'), 4)[1]);
 
-        dd($toVote);
+        // dd($toVote);
 
         // Log::info("", $result);
+
+        $qweqwe = $this->checkResourceCredit('dbuzz');
+        dump($qweqwe);
+    }
+
+    protected function makeHttpRequest($data)
+    {
+        // Replace with your actual HTTP request logic
+        return Http::post('https://rpc.d.buzz/', $data)->json()['result'] ?? [];
+    }
+
+    public function checkResourceCredit($username)
+    {
+        $account = $this->makeHttpRequest([
+            'jsonrpc' => '2.0',
+            'method' => 'rc_api.find_rc_accounts',
+            'params' => ['accounts' => [$username]], //
+            'id' => 1,
+        ]);
+
+        $accountData = $account['rc_accounts'][0];
+        $currentMana = (float) $accountData['rc_manabar']['current_mana'];
+        $maxMana = (float) $accountData['max_rc'];
+
+        // Calculate the percentage
+        $percentage = ($currentMana / $maxMana) * 100;
+        $percent = number_format($percentage, 2);
+
+        return $percent > 5;
     }
 
     function getAccountHistory($username)
