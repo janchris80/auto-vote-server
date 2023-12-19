@@ -21,7 +21,7 @@ class Voting extends Command
             })
             ->with(['user', 'follower'])
             ->where('is_enable', '=', 1)
-            ->chunk(10, function ($followers) {
+            ->chunk(100, function ($followers) {
                 ProcessVotesJob::dispatch($followers)->onQueue('processing');
             });
     }
