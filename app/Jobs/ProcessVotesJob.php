@@ -267,7 +267,7 @@ class ProcessVotesJob implements ShouldQueue
                 $countData = count($votes ?? []);
                 $displayData = json_encode($votes);
 
-                if ($discordWebhookUrl && !$isLimitted) {
+                if ($discordWebhookUrl && !$isLimitted && $canVote) {
                     $logMessages = <<<LOG
                     ----------------------------------------------------------
                     $displayData
