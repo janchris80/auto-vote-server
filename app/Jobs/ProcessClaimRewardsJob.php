@@ -93,7 +93,7 @@ class ProcessClaimRewardsJob implements ShouldQueue
                 }
             }
 
-            if ($discordWebhookUrl) {
+            if ($discordWebhookUrl && $hasRewards) {
                 $message = $hasRewards ? 'Rewards claimed successfully for' : 'No rewards to claim for';
 
                 $logMessages = <<<LOG
