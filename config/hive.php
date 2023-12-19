@@ -15,4 +15,5 @@ return [
         'posting' => env('HIVE_PRIVATE_KEY_POSTING', null),
         'memo' => env('HIVE_PRIVATE_KEY_MEMO', null),
     ],
+    'api_url_node' => env('API_NODE', 'https://rpc.d.buzz/')
 ];
