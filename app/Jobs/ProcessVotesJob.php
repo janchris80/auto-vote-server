@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Models\Follower;
-use App\Traits\HelperTrait;
 use Illuminate\Bus\Queueable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Queue\InteractsWithQueue;
@@ -15,14 +14,7 @@ use Illuminate\Support\Facades\Log;
 
 class ProcessVotesJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels, HelperTrait;
-
-    const CONDENSER_API_GET_ACCOUNTS = 'condenser_api.get_accounts';
-    const CONDENSER_API_GET_ACCOUNT_HISTORY = 'condenser_api.get_account_history';
-    const CONDENSER_API_GET_CONTENT_REPLIES = 'condenser_api.get_content_replies';
-    const CONDENSER_API_GET_ACTIVE_VOTES = 'condenser_api.get_active_votes';
-    const BRIDGE_GET_ACCOUNT_POSTS = 'bridge.get_account_posts';
-    const RC_API_FIND_RC_ACCOUNTS = 'rc_api.find_rc_accounts';
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $followers;
     public $timeout = 300; // in seconds
@@ -34,170 +26,314 @@ class ProcessVotesJob implements ShouldQueue
 
     public function handle()
     {
-        try {
-            // Check if the 'condenser_api.get_accounts' method is available
-            if ($this->canMakeRequest(self::CONDENSER_API_GET_ACCOUNTS)) {
-                // Extract unique usernames
-                $followers = $this->followers;
-                $usernames = $followers->pluck('follower.username')->unique()->all();
-                $canVoteUsernames = $this->getEligibleUsernames($usernames);
+        $startTime = microtime(true); // Start timer
+        //Log::info("Starting ProcessVotesJob for " . count($this->followers) . " followers");
 
-                // Retrieve account information
-                $accounts = $this->getApiData(
-                    self::CONDENSER_API_GET_ACCOUNTS,
-                    [$canVoteUsernames, false]
-                );
+        foreach ($this->followers as $follower) {
+            $this->processFollower($follower);
+            unset($follower);
+        };
 
-                foreach ($accounts as $account) {
-                    $mana = $this->processAccountCurrentMana($account);
-                    $this->processVotes($followers, $mana);
-                }
-            }
-        } catch (\Throwable $th) {
-            // Handle the exception
-            dump($th->getMessage());
-            Log::error('Error processing followers: ' . $th->getMessage());
-        }
+        //Log::info("ProcessVotesJob completed in " . (microtime(true) - $startTime) . " seconds");
     }
 
-    protected function processVotes($followers, $mana)
+    public function getAccountPost($username)
+    {
+        $response = $this->makeHttpRequest([
+            'jsonrpc' => '2.0',
+            'method' => 'bridge.get_account_posts',
+            'params' => [
+                "sort" => "posts",
+                "account" => $username,
+                "limit" => 20,
+            ],
+            'id' => 1,
+        ]);
+
+        return $response;
+    }
+
+    public function getContentReplies($username, $permlink)
+    {
+        $response = $this->makeHttpRequest([
+            'jsonrpc' => '2.0',
+            'method' => 'condenser_api.get_content_replies',
+            'params' => [$username, $permlink],
+            'id' => 1,
+        ]);
+
+        return $response;
+    }
+
+    protected function getAccountHistory($username)
+    {
+        $response = $this->makeHttpRequest([
+            'jsonrpc' => '2.0',
+            'method' => 'condenser_api.get_account_history',
+            'params' => [$username, -1, 150, 1],
+            'id' => 1,
+        ]);
+
+        $voteOps = collect($response)
+            ->filter(function ($tx) use ($username) {
+                return $tx[1]['op'][1]['voter'] === $username;
+            })
+            ->map(function ($tx) {
+                return $tx[1]['op'][1];
+            });
+
+        return $voteOps;
+    }
+
+    protected function processUpvotes($transactions, $usernameToCheck, $userWeight, $method, $limitMana)
     {
         $votes = [];
 
-        foreach ($followers as $user) {
-            $followedUser = $user->user->username;
-            $voter = $user->follower->username;
-            $votingType = $user->voting_type;
-            $voterWeight = $user->weight;
-            $voterDownvoteManaLimit = $user->follower->limit_downvote_mana;
-            $voterUpvoteManaLimit = $user->follower->limit_upvote_mana;
-            $method = $user->trailer_type; // curation, downvote, upvote_post, upvote_comment
-            $limitMana = $method === 'downvote' ? $voterDownvoteManaLimit : $voterUpvoteManaLimit;
-            $currentMana = $method === 'downvote' ? $mana['downvote'] : $mana['upvote'];
-            $canVote = $currentMana > $limitMana;
+        try {
+            foreach ($transactions as $tx) {
+                if ($this->canMakeRequest('condenser_api.get_active_votes')) {
+                    $weight = $this->calculateVotingWeight($userWeight, $tx['weight'], $method);
 
-            if ($canVote) {
-                Log::info("$voter can vote? ", [$currentMana > $limitMana, $currentMana, $limitMana]);
-                //dump('Processing ' . $voter . ' - ' . $method);
+                    $tx['voter'] = $usernameToCheck;
+                    $tx['weight'] = $weight;
+                    $tx['limitMana'] = $limitMana;
+                    // $tx['author']
+                    // $tx['permlink']
+                    $votes[] = $tx;
+                    $toVote = collect([
+                        'voter' => $usernameToCheck,
+                        'author' => $tx['author'],
+                        'permlink' => $tx['permlink'],
+                        'weight' => $weight,
+                        'limitMana' => $limitMana,
+                        'method' => $method,
+                    ]);
 
-                if (in_array($method, ['curation', 'downvote'])) {
-                    $history = $this->getAccountHistory($user->user->username);
+                    ProcessUpvoteJob::dispatch($toVote)->onQueue('voting');
 
-                    foreach ($history as $tx) {
-                        $weight = $this->calculateVotingWeight($voterWeight, $tx['weight'], $votingType);
-
-                        $tx['voter'] = $voter;
-                        $tx['weight'] = $weight;
-                        $tx['limitMana'] = $limitMana;
-
-                        $votes[] = $tx;
-
-                        // $activeVotes = $this->getActiveVotes($tx['author'], $tx['permlink']);
-                        // $isVoted = $activeVotes->contains('voter', $voter);
-
-                        // if (!$isVoted) {
-                        $this->dispatchUpvoteJob(
-                            $voter,
-                            $tx['author'],
-                            $tx['permlink'],
-                            $weight,
-                            $limitMana,
-                            $method
-                        );
-                        // }
-                    }
+                    // Cache::put('last_api_request_time.condenser_api.get_active_votes', now(), 60); // 60 seconds cooldown
+                } else {
+                    Log::warning("Rate limit hit for condenser_api.get_active_votes, delaying the request for follower: " . $usernameToCheck);
                 }
+            }
+        } catch (\Throwable $th) {
+            Log::warning("Process processUpvotes error: " . $th->getMessage());
+        }
+    }
 
-                if ($method === 'upvote_post') {
-                    $posts = $this->getAccountPost($followedUser);
+    public function checkResourceCredit($username)
+    {
+        $account = $this->makeHttpRequest([
+            'jsonrpc' => '2.0',
+            'method' => 'rc_api.find_rc_accounts',
+            'params' => ['accounts' => [$username]], //
+            'id' => 1,
+        ]);
 
-                    foreach ($posts as $post) {
-                        if ($post['author'] === $followedUser) {
+        $accountData = $account['rc_accounts'][0];
+        $currentMana = $accountData['rc_manabar']['current_mana'];
+        $maxMana = $accountData['max_rc'];
 
-                            // $activeVotes = $this->getActiveVotes($post['author'], $post['permlink']);
-                            // $isVoted = $activeVotes->contains('voter', $voter);
+        // Calculate the percentage
+        $percentage = ($currentMana / $maxMana) * 100;
+        $percent = number_format($percentage, 2);
 
-                            // if (!$isVoted) {
-                            $this->dispatchUpvoteJob(
-                                $voter,
-                                $post['author'],
-                                $post['permlink'],
-                                $voterWeight,
+        return (float) $percent > 5;
+    }
+
+    protected function processFollower($follower)
+    {
+        try {
+            $votes = [];
+            $isLimitted = false;
+
+            $discordWebhookUrl = $follower->follower->discord_webhook_url;
+            $username = $follower->follower->username;
+            $userId = $follower->follower->id;
+            $method = $follower->trailer_type;
+            $limitMana = $method === 'downvote' ? $follower->follower->limit_downvote_mana : $follower->follower->limit_upvote_mana;
+            $accountHistories = [];
+            $voteOps = [];
+
+            if ($this->canMakeRequest('condenser_api.get_accounts')) {
+                $account = $this->makeHttpRequest([
+                    'jsonrpc' => '2.0',
+                    'method' => 'condenser_api.get_accounts',
+                    'params' => [[$username]], //
+                    'id' => 1,
+                ]);
+
+                // check resource credit before processing votes
+                $canVote = $this->checkResourceCredit($username);
+
+                // Process the response
+                if (!empty($account)) {
+                    $currentMana = $this->processAccountCurrentMana($account[0], $method);
+                    $isLimitted = intval($currentMana) <= intval($limitMana);
+                }
+                $currentManaPercentage = $currentMana / 100;
+                $limitManaPercentage = $limitMana / 100;
+
+                $currentManaText = "Your mana (" . $currentManaPercentage <= $limitManaPercentage . ") is low, can't process a vote.";
+
+                if (!$isLimitted && $canVote) {
+                    $currentManaText = "Your mana (" . $currentManaPercentage <= $limitManaPercentage . ") is high, can process a vote";
+                    $accountWatcher = $follower->user->username;
+
+                    if ($this->canMakeRequest('condenser_api.get_account_history')) {
+                        // Process the response
+                        $history = $this->getAccountHistory($accountWatcher);
+
+                        if (in_array($follower->trailer_type, ['curation', 'downvote'])) {
+                            $this->processUpvotes(
+                                $history,
+                                $username,
+                                $follower->weight,
+                                $follower->voting_type,
                                 $limitMana,
-                                $method
                             );
-                            // }
                         }
-                    }
-                }
 
-                if ($method === 'upvote_comment') {
-                    $userPosts = $this->getAccountPost($voter);
+                        if ($follower->trailer_type === 'upvote_post') {
+                            $posts = $this->getAccountPost($accountWatcher);
 
-                    foreach ($userPosts as $post) {
-                        $replies = $this->getContentReplies($voter, $post['permlink']);
-
-                        if (count($replies)) {
-                            foreach ($replies as $reply) {
-                                if ($reply['author'] === $followedUser) {
+                            foreach ($posts as $post) {
+                                if ($post['author'] === $accountWatcher) {
                                     $votes[] = [
-                                        'voter' => $voter,
-                                        'author' => $reply['author'],
-                                        'permlink' => $reply['permlink'],
-                                        'weight' => $voterWeight,
+                                        'voter' => $username,
+                                        'author' => $post['author'],
+                                        'permlink' => $post['permlink'],
+                                        'weight' => $follower->weight,
                                         'limitMana' => $limitMana,
                                         'method' => $method,
                                     ];
 
-                                    // $activeVotes = $this->getActiveVotes($reply['author'], $reply['permlink']);
-                                    // $isVoted = $activeVotes->contains('voter', $voter);
+                                    $toVote = collect([
+                                        'voter' => $username,
+                                        'author' => $post['author'],
+                                        'permlink' => $post['permlink'],
+                                        'weight' => $follower->weight,
+                                        'limitMana' => $limitMana,
+                                        'method' => $method,
+                                    ]);
 
-                                    // if (!$isVoted) {
-                                    $this->dispatchUpvoteJob(
-                                        $voter,
-                                        $reply['author'],
-                                        $reply['permlink'],
-                                        $voterWeight,
-                                        $limitMana,
-                                        $method
-                                    );
-                                    // }
+                                    ProcessUpvoteJob::dispatch($toVote)->onQueue('voting');
                                 }
                             }
                         }
+
+                        if ($follower->trailer_type === 'upvote_comment') {
+                            $userPosts = $this->getAccountPost($username);
+
+                            foreach ($userPosts as $post) {
+                                $replies = $this->getContentReplies($username, $post['permlink']);
+
+                                if (count($replies)) {
+                                    foreach ($replies as $reply) {
+                                        if ($reply['author'] === $accountWatcher) {
+                                            $votes[] = [
+                                                'voter' => $username,
+                                                'author' => $reply['author'],
+                                                'permlink' => $reply['permlink'],
+                                                'weight' => $follower->weight,
+                                                'limitMana' => $limitMana,
+                                                'method' => $method,
+                                            ];
+
+                                            $toVote = collect([
+                                                'voter' => $username,
+                                                'author' => $reply['author'],
+                                                'permlink' => $reply['permlink'],
+                                                'weight' => $follower->weight,
+                                                'limitMana' => $limitMana,
+                                                'method' => $method,
+                                            ]);
+                                            ProcessUpvoteJob::dispatch($toVote)->onQueue('voting');
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Cache::put('last_api_request_time.condenser_api.get_account_history', now(), 60); // 60 seconds cooldown
+                    } else {
+                        Log::warning("Rate limit hit for condenser_api.get_account_history, delaying the request for follower: " . $username);
                     }
+                } else {
+                    //Log::warning("Mana is not enough");
                 }
+
+                $countData = count($votes ?? []);
+                $displayData = json_encode($votes);
+
+                if ($discordWebhookUrl && !$isLimitted && $canVote) {
+                    $logMessages = <<<LOG
+                    ----------------------------------------------------------
+                    $displayData
+                    ----------------------------------------------------------
+                    LOG;
+
+                    $discordFields = [
+                        [
+                            'name' => 'Current Mana',
+                            'value' => $currentMana / 100 . "% *(hive mana)*",
+                            'inline' => false,
+                        ],
+                        [
+                            'name' => 'Limit Mana',
+                            'value' => $limitMana / 100 . "% *(Settings in auto.vote)*",
+                            'inline' => false,
+                        ],
+                        [
+                            'name' => 'Mana Status',
+                            'value' => $currentManaText,
+                            'inline' => false,
+                        ],
+                        [
+                            "name" => "Total voted for this process",
+                            "value" => $countData,
+                            "inline" => false
+                        ],
+                    ];
+
+                    SendDiscordNotificationJob::dispatch($userId, $discordFields, $logMessages)
+                        ->onQueue('notification');
+                }
+                // Cache the timestamp of the request
+                // Cache::put('last_api_request_time.condenser_api.get_accounts', now(), 60); // 180 seconds cooldown = 3 minutes
+            } else {
+                Log::warning("Rate limit hit for condenser_api.get_accounts, delaying the request for follower: " . $username);
             }
 
-            //dump('Not enough mana to process ' . $voter . ' - ' . $method);
+            // $this->updateFollowerProcessingStatus($follower->id, false);
+        } catch (\Exception $e) {
+            Log::error("Job failed for follower " . $follower->id . ": " . $e->getMessage());
+            // $this->updateFollowerProcessingStatus($follower->id, false);
         }
     }
 
-    protected function dispatchUpvoteJob($voter, $author, $permlink, $weight, $limitMana, $method)
+    private function updateFollowerProcessingStatus($followerId, $status)
     {
-        $toVote = collect(compact('voter', 'author', 'permlink', 'weight', 'limitMana', 'method'));
-        ProcessUpvoteJob::dispatch($toVote)->onQueue('voting');
+        Follower::where('id', $followerId)
+            ->update(['is_being_processed' => $status]);
     }
 
-    protected function getEligibleUsernames($usernames)
+
+    protected function canMakeRequest($name)
     {
-        $eligibleUsernames = [];
-
-        $resourceCredits = $this->getApiData(self::RC_API_FIND_RC_ACCOUNTS, ['accounts' => array_values($usernames)]);
-
-        foreach ($resourceCredits['rc_accounts'] ?? [] as $resourceCredit) {
-            if ($this->checkResourceCredit($resourceCredit)) {
-                $eligibleUsernames[] = $resourceCredit['account'];
-            }
-        }
-
-        return $eligibleUsernames;
+        return !Cache::has('last_api_request_time.' . $name);
     }
 
-    protected function calculateVotingWeight($userWeight, $authorWeight, $votingType)
+    protected function makeHttpRequest($data)
+    {
+        // Replace with your actual HTTP request logic
+        return Http::post('https://rpc.d.buzz/', $data)->json()['result'] ?? [];
+    }
+
+    protected function calculateVotingWeight($userWeightOption, $authorWeight, $votingType)
     {
         $convertHivePercentage = 10000; // 100%
-        $percentage = $userWeight; // 1%
+        $percentage = $userWeightOption; // 1%
         $baseValue = $authorWeight; // 13%
         $method = strtolower($votingType);
         $result = 0;
@@ -213,73 +349,7 @@ class ProcessVotesJob implements ShouldQueue
         return intval($result);
     }
 
-    protected function getActiveVotes($author, $permlink)
-    {
-        $response = $this->getApiData(
-            self::CONDENSER_API_GET_ACTIVE_VOTES,
-            [$author, $permlink]
-        );
-
-        return collect($response);
-    }
-
-    protected function getContentReplies($username, $permlink)
-    {
-        $response = $this->getApiData(
-            self::CONDENSER_API_GET_CONTENT_REPLIES,
-            [$username, $permlink]
-        );
-
-        return $response;
-    }
-
-    protected function getAccountPost($username)
-    {
-        $response = $this->getApiData(
-            self::BRIDGE_GET_ACCOUNT_POSTS,
-            [
-                "sort" => "posts",
-                "account" => $username,
-                "limit" => 10,
-            ]
-        );
-
-        return $response;
-    }
-
-    protected function getAccountHistory($username)
-    {
-        $response = $this->getApiData(
-            self::CONDENSER_API_GET_ACCOUNT_HISTORY,
-            [$username, -1, 150, 1]
-        );
-
-        $voteOps = collect($response)
-            ->filter(function ($tx) use ($username) {
-                return $tx[1]['op'][1]['voter'] === $username;
-            })
-            ->map(function ($tx) {
-                return $tx[1]['op'][1];
-            });
-
-        return $voteOps;
-    }
-
-    protected function checkResourceCredit($data)
-    {
-        $currentMana = $data['rc_manabar']['current_mana'];
-        $maxMana = $data['max_rc'];
-        $name = $data['account'];
-
-        // Calculate the percentage
-        $percentage = ($currentMana / $maxMana) * 100;
-        $percent = number_format($percentage, 2);
-        // Log::info($name . ' resource credit: ', [(float) $percent > 1, (float) $percent, $percentage]);
-
-        return (float) $percent > 1;
-    }
-
-    protected function processAccountCurrentMana($account)
+    protected function processAccountCurrentMana($account, $method)
     {
         // Extracting and processing account details
         $delegated = floatval(str_replace('VESTS', '', $account['delegated_vesting_shares']));
@@ -296,32 +366,46 @@ class ProcessVotesJob implements ShouldQueue
 
         $totalvest = $vesting + $received - $delegated - $withdrawRate;
         $maxMana = $totalvest * pow(10, 6);
-        $maxManaDown = $maxMana * 0.25;
 
+        if ($method === 'downvote') {
+            return $this->getDownvoteMana($account, $maxMana);
+        } else {
+            return $this->getUpvoteMana($account, $maxMana);
+        }
+    }
+
+    public function getUpvoteMana($account, $maxMana)
+    {
         $delta = time() - $account['voting_manabar']['last_update_time'];
-        $currentMana = $account['voting_manabar']['current_mana'] + ($delta * $maxMana / 432000);
-
-        $deltaDown = time() - $account['downvote_manabar']['last_update_time'];
-        $currentManaDown = $account['downvote_manabar']['current_mana'] + ($deltaDown * $maxManaDown / 432000);
-
-        $percentage = round($currentMana / $maxMana * 10000);
-        $percentageDown = round($currentManaDown / $maxManaDown * 10000);
+        $current_mana = $account['voting_manabar']['current_mana'] + ($delta * $maxMana / 432000);
+        $percentage = round($current_mana / $maxMana * 10000);
 
         if (!is_finite($percentage)) $percentage = 0;
         if ($percentage > 10000) $percentage = 10000;
         elseif ($percentage < 0) $percentage = 0;
 
-        if (!is_finite($percentageDown)) $percentageDown = 0;
-        if ($percentageDown > 10000) $percentageDown = 10000;
-        elseif ($percentageDown < 0) $percentageDown = 0;
+        // $percent = number_format($percentage / 100, 2);
 
-        $upvotePower = intval($percentage);
-        $downvotePower = intval($percentageDown);
+        return intval($percentage);
+    }
 
-        return [
-            'upvote' => $upvotePower,
-            'downvote' => $downvotePower,
-            'name' => $account['name'],
-        ];
+    public function getDownvoteMana($account, $maxMana)
+    {
+        $currentPower = $account['downvote_manabar']['current_mana'];
+        $lastUpdateTime = $account['downvote_manabar']['last_update_time'];
+        $fullRechargeTime = 432000;
+
+        $now = time();
+        $secondsSinceUpdate = $now - $lastUpdateTime;
+
+        $maxMana = // assign the value of maxMana here, same as in your JS code
+
+            $currentDownvotePower = ($currentPower + $secondsSinceUpdate * ($maxMana / $fullRechargeTime)) / $maxMana;
+        $currentDownvotePower = min($currentDownvotePower, 1); // Cap at 100%
+
+        // Convert to percentage and format to 2 decimal places
+        $downvotePowerPercent = number_format($currentDownvotePower * 100, 2);
+
+        return intval($downvotePowerPercent);
     }
 }
