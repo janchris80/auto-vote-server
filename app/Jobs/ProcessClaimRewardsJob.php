@@ -37,7 +37,7 @@ class ProcessClaimRewardsJob implements ShouldQueue
         $postingPrivateKey = new PrivateKey($postingKey);
 
         $startTime = microtime(true); // Start timer
-        Log::info("Starting ProcessClaimRewardsJob for followers chunk: " . count($this->followers));
+        //Log::info("Starting ProcessClaimRewardsJob for followers chunk: " . count($this->followers));
         // broadcastClaimReward logic here
         foreach ($this->followers as $follower) {
             try {
@@ -47,8 +47,8 @@ class ProcessClaimRewardsJob implements ShouldQueue
             }
         }
 
-        Log::info("Job ProcessClaimRewardsJob successfully");
-        Log::info("Total time taken: {" . microtime(true) - $startTime . "} seconds\n");
+        //Log::info("Job ProcessClaimRewardsJob successfully");
+        //Log::info("Total time taken: {" . microtime(true) - $startTime . "} seconds\n");
     }
 
     protected function broadcastClaimReward($follower, $postingPrivateKey)

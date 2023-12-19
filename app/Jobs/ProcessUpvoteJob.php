@@ -166,9 +166,9 @@ class ProcessUpvoteJob implements ShouldQueue
                     'is_voted' => true,
                 ]
             );
-            Log::info('Voting result: ', $result);
+            // Log::info('Voting result: ', $result);
         } else {
-            Log::error('Voting result: ', $result);
+            // Log::error('Voting result: ', $result);
         }
     }
 }

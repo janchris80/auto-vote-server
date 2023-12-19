@@ -28,14 +28,14 @@ class ProcessVotesJob implements ShouldQueue
     public function handle()
     {
         $startTime = microtime(true); // Start timer
-        Log::info("Starting ProcessVotesJob for " . count($this->followers) . " followers");
+        //Log::info("Starting ProcessVotesJob for " . count($this->followers) . " followers");
 
         foreach ($this->followers as $follower) {
             $this->processFollower($follower);
             unset($follower);
         };
 
-        Log::info("ProcessVotesJob completed in " . (microtime(true) - $startTime) . " seconds");
+        //Log::info("ProcessVotesJob completed in " . (microtime(true) - $startTime) . " seconds");
     }
 
     public function getAccountPost($username)
@@ -237,7 +237,7 @@ class ProcessVotesJob implements ShouldQueue
                         Log::warning("Rate limit hit for condenser_api.get_account_history, delaying the request for follower: " . $username);
                     }
                 } else {
-                    Log::warning("Mana is not enough");
+                    //Log::warning("Mana is not enough");
                 }
 
                 $countData = count($votes ?? []);
