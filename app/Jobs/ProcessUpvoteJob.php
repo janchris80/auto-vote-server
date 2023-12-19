@@ -33,7 +33,7 @@ class ProcessUpvoteJob implements ShouldQueue
         $postingKey = config('hive.private_key.posting'); // Be cautious with private keys
         $postingPrivateKey = new PrivateKey($postingKey);
 
-        Log::debug('Posting', [$postingPrivateKey]);
+        // Log::debug('Posting', [$postingPrivateKey]);
 
         $vote = (object)$this->votes->all();
 

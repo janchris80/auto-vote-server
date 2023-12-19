@@ -75,7 +75,7 @@ class ProcessClaimRewardsJob implements ShouldQueue
                 $rewardVests = $account['reward_vesting_balance'];
 
                 if ($rewardHive === '0.000 HIVE' && $rewardHbd === '0.000 HBD' && $rewardVests === '0.000000 VESTS') {
-                    Log::info('No rewards to claim for ' . $username);
+                    // Log::info('No rewards to claim for ' . $username);
                     $hasRewards = false;
                 } else {
                     $opParams = [
