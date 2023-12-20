@@ -127,6 +127,7 @@ class ProcessVotesJob implements ShouldQueue
                         return [
                             'author' => $post['author'],
                             'permlink' => $post['permlink'],
+                            'created' => $post['created'],
                         ];
                     });
 
@@ -142,7 +143,11 @@ class ProcessVotesJob implements ShouldQueue
                             'trailerType' => $trailerType,
                         ]);
 
-                        $jobs->push(new ProcessUpvoteJob($toVote));
+                        $voteTimestamp = strtotime($post['created']);
+
+                        if ($voteTimestamp >= strtotime($lastVotedAt) && $voteTimestamp <= time()) {
+                            $jobs->push(new ProcessUpvoteJob($toVote));
+                        }
                     }
                 }
 
@@ -194,6 +199,7 @@ class ProcessVotesJob implements ShouldQueue
                             return [
                                 'author' => $post['author'],
                                 'permlink' => $post['permlink'],
+                                'created' => $post['created'],
                             ];
                         });
 
@@ -209,7 +215,11 @@ class ProcessVotesJob implements ShouldQueue
                                 'trailerType' => $trailerType,
                             ]);
 
-                            $jobs->push(new ProcessUpvoteJob($toVote));
+                            $voteTimestamp = strtotime($post['created']);
+
+                            if ($voteTimestamp >= strtotime($lastVotedAt) && $voteTimestamp <= time()) {
+                                $jobs->push(new ProcessUpvoteJob($toVote));
+                            }
                         }
                     }
                 }
@@ -217,7 +227,7 @@ class ProcessVotesJob implements ShouldQueue
                 if ($jobs->count()) {
                     $follower->last_voted_at = now();
                     $follower->save();
-                    
+
                     $this->processBatchVotingJob($jobs->toArray());
                 }
 
