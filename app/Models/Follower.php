@@ -19,6 +19,7 @@ class Follower extends Model
         'vote_per_week',
         'is_enable',
         'is_being_processed',
+        'last_voted_at',
     ];
 
     public function user()

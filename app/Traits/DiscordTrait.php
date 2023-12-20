@@ -35,7 +35,7 @@ trait DiscordTrait
             // 'image' => [
             //     'url' => 'https://i.imgur.com/AfFp7pu.png',
             // ],
-            'timestamp' => Carbon::now()->toIso8601String(), // Equivalent to new Date().toISOString()
+            'timestamp' => now()->toIso8601String(), // Equivalent to new Date().toISOString()
             'footer' => [
                 'text' => 'Sent via auto.vote',
                 'icon_url' => 'https://images.hive.blog/DQmX3jshg31YHPubSaUc4cLr5rfhYK8ye4iRFKt4LDCgKTX/dBuzz%20circle%20logo.jpg',
