@@ -4,9 +4,9 @@
 
 ## [1.0.0] - 2023-12-20
 ### Added
-- Check resource credit
-- Check upvote mana
-- Check downvote mana
+- Check resource credit function
+- Check upvote mana function
+- Check downvote mana function
 - added `last_voted_at` column in `followers` table
 
 ### Changed
