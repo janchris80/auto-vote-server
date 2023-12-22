@@ -81,6 +81,7 @@ class ProcessUpvoteJob implements ShouldQueue
                 'voting_type' => $vote->votingType,
                 'limit_mana' => $vote->limitMana,
                 'voted_at' => $vote->votedAt,
+                'followed_author' => $vote->followedAuthor,
             ]);
         }
     }

@@ -13,16 +13,17 @@ return new class extends Migration
     {
         Schema::create('vote_logs', function (Blueprint $table) {
             $table->id();
-            $table->string('voter');
-            $table->string('author');
+            $table->string('voter', 16);
+            $table->string('author', 16);
             $table->string('permlink');
-            $table->string('author_weight');
-            $table->integer('voter_weight');
-            $table->integer('mana_left');
-            $table->integer('rc_left');
-            $table->string('trailer_type');
-            $table->string('voting_type');
-            $table->integer('limit_mana');
+            $table->string('followed_author', 16);
+            $table->unsignedSmallInteger('author_weight');
+            $table->unsignedSmallInteger('voter_weight');
+            $table->unsignedSmallInteger('mana_left');
+            $table->unsignedSmallInteger('rc_left');
+            $table->unsignedSmallInteger('limit_mana');
+            $table->enum('trailer_type', ['curation', 'downvote', 'upvote_comment', 'upvote_post']);
+            $table->enum('voting_type', ['scaled', 'fixed']);
             $table->timestamp('voted_at');
             $table->timestamps();
         });
