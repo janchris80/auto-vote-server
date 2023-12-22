@@ -35,7 +35,7 @@ class ProcessVotesJob implements ShouldQueue
     public function processFollower($follower)
     {
         try {
-            // $followerId = $follower->id;
+            $followerId = $follower->id;
             $hasEnoughMana = false;
             // $discordWebhookUrl = $follower->follower->discord_webhook_url;
             $voter = $follower->follower->username;
@@ -52,6 +52,7 @@ class ProcessVotesJob implements ShouldQueue
             $limitMana = $trailerType === 'downvote' ? $limitDownvoteMana : $limitUpvoteMana;
 
             $hasEnoughResourceCredit = $this->hasEnoughResourceCredit($voter);
+            $rcLeft = intval($this->getResourceCredit() * 100);
 
             if (!$hasEnoughResourceCredit) {
                 return;
@@ -59,6 +60,7 @@ class ProcessVotesJob implements ShouldQueue
 
             $account = $this->getAccounts($voter)->first();
             $hasEnoughMana = $this->hasEnoughMana($account, $trailerType, $limitMana);
+            $manaLeft = $this->getCurrentMana();
 
             if (!$hasEnoughMana) {
                 return;
@@ -92,6 +94,11 @@ class ProcessVotesJob implements ShouldQueue
                             'limitMana' => $limitMana,
                             'votingType' => $votingType,
                             'trailerType' => $trailerType,
+                            'voterWeight' => $voterWeight,
+                            'manaLeft' => $manaLeft,
+                            'rcLeft' => $rcLeft,
+                            'votedAt' => now(),
+                            'followerId' => $followerId,
                         ]);
 
                         $jobs->push(new ProcessUpvoteJob($toVote));
@@ -99,10 +106,7 @@ class ProcessVotesJob implements ShouldQueue
                 }
 
                 if ($jobs->count()) {
-                    $follower->last_voted_at = now();
-                    $follower->save();
-
-                    $this->processBatchVotingJob($jobs->toArray());
+                    $this->dispatch($jobs->toArray())->onQueue('voting');
                 }
 
                 return;
@@ -141,6 +145,11 @@ class ProcessVotesJob implements ShouldQueue
                             'limitMana' => $limitMana,
                             'votingType' => $votingType,
                             'trailerType' => $trailerType,
+                            'voterWeight' => $voterWeight,
+                            'manaLeft' => $manaLeft,
+                            'rcLeft' => $rcLeft,
+                            'votedAt' => now(),
+                            'followerId' => $followerId,
                         ]);
 
                         $voteTimestamp = strtotime($post['created']);
@@ -152,10 +161,7 @@ class ProcessVotesJob implements ShouldQueue
                 }
 
                 if ($jobs->count()) {
-                    $follower->last_voted_at = now();
-                    $follower->save();
-
-                    $this->processBatchVotingJob($jobs->toArray());
+                    $this->dispatch($jobs->toArray())->onQueue('voting');
                 }
 
                 return;
@@ -213,6 +219,11 @@ class ProcessVotesJob implements ShouldQueue
                                 'limitMana' => $limitMana,
                                 'votingType' => $votingType,
                                 'trailerType' => $trailerType,
+                                'voterWeight' => $voterWeight,
+                                'manaLeft' => $manaLeft,
+                                'rcLeft' => $rcLeft,
+                                'votedAt' => now(),
+                                'followerId' => $followerId,
                             ]);
 
                             $voteTimestamp = strtotime($post['created']);
@@ -225,10 +236,7 @@ class ProcessVotesJob implements ShouldQueue
                 }
 
                 if ($jobs->count()) {
-                    $follower->last_voted_at = now();
-                    $follower->save();
-
-                    $this->processBatchVotingJob($jobs->toArray());
+                    $this->dispatch($jobs->toArray())->onQueue('voting');
                 }
 
                 return;

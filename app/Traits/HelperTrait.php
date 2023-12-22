@@ -14,6 +14,9 @@ use Throwable;
 
 trait HelperTrait
 {
+    public $resourceCredit = 0;
+    public $currentMana = 0;
+
     public function canMakeRequest($name)
     {
         return !Cache::has('last_api_request_time.' . $name);
@@ -117,6 +120,16 @@ trait HelperTrait
         return $activeVotes->contains('voter', $voter);
     }
 
+    public function getResourceCredit(): float
+    {
+        return $this->resourceCredit;
+    }
+
+    public function getCurrentMana(): int
+    {
+        return $this->currentMana;
+    }
+
     public function hasEnoughResourceCredit($voter, $minimumPercentage = 5): bool
     {
         $account = $this->getResourceAccounts($voter)
@@ -127,12 +140,15 @@ trait HelperTrait
 
         $percent = $this->calculateResourceCreditsPercentage($account);
 
+        $this->resourceCredit = $percent;
+
         return $percent >= ($minimumPercentage ?? config('hive.resource_credit_limit'));
     }
 
     public function hasEnoughMana($account, $trailerType, $limitMana): bool
     {
         $currentMana = $this->calculateAccountMana($account, $trailerType);
+        $this->currentMana = $currentMana;
         return $currentMana > $limitMana;
     }
 

@@ -47,9 +47,7 @@ class Publish extends Command
     public function processFollower($follower)
     {
         try {
-            $votes = [];
-
-            // $followerId = $follower->id;
+            $followerId = $follower->id;
             $hasEnoughMana = false;
             // $discordWebhookUrl = $follower->follower->discord_webhook_url;
             $voter = $follower->follower->username;
@@ -58,7 +56,7 @@ class Publish extends Command
             $trailerType = $follower->trailer_type; // curation, downvote, upvote_post, upvote_comment
             $voterWeight = $follower->weight;
             $votingType = $follower->voting_type; // scaled or fixed,
-            $lastVotedAt = $follower->last_voted_at ?? $follower->follower->created_at;
+            $lastVotedAt = $follower->last_voted_at ?? now();
 
             $limitUpvoteMana = $follower->follower->limit_upvote_mana;
             $limitDownvoteMana = $follower->follower->limit_downvote_mana;
@@ -66,6 +64,7 @@ class Publish extends Command
             $limitMana = $trailerType === 'downvote' ? $limitDownvoteMana : $limitUpvoteMana;
 
             $hasEnoughResourceCredit = $this->hasEnoughResourceCredit($voter);
+            $rcLeft = intval($this->getResourceCredit() * 100);
 
             if (!$hasEnoughResourceCredit) {
                 return;
@@ -73,12 +72,11 @@ class Publish extends Command
 
             $account = $this->getAccounts($voter)->first();
             $hasEnoughMana = $this->hasEnoughMana($account, $trailerType, $limitMana);
+            $manaLeft = $this->getCurrentMana();
 
             if (!$hasEnoughMana) {
                 return;
             }
-
-            Log::info($trailerType);
 
             if (in_array($trailerType, ['curation', 'downvote'])) {
                 $jobs = collect();
@@ -108,16 +106,21 @@ class Publish extends Command
                             'limitMana' => $limitMana,
                             'votingType' => $votingType,
                             'trailerType' => $trailerType,
+                            'voterWeight' => $voterWeight,
+                            'manaLeft' => $manaLeft,
+                            'rcLeft' => $rcLeft,
+                            'votedAt' => now(),
+                            'followerId' => $followerId,
                         ]);
 
                         $jobs->push(new ProcessUpvoteJob($toVote));
-
-                        $follower->last_voted_at = now();
-                        $follower->save();
                     }
                 }
 
                 if ($jobs->count()) {
+                    $follower->last_voted_at = now();
+                    $follower->save();
+
                     $this->processBatchVotingJob($jobs->toArray());
                 }
 
@@ -143,6 +146,7 @@ class Publish extends Command
                         return [
                             'author' => $post['author'],
                             'permlink' => $post['permlink'],
+                            'created' => $post['created'],
                         ];
                     });
 
@@ -156,14 +160,26 @@ class Publish extends Command
                             'limitMana' => $limitMana,
                             'votingType' => $votingType,
                             'trailerType' => $trailerType,
+                            'voterWeight' => $voterWeight,
+                            'manaLeft' => $manaLeft,
+                            'rcLeft' => $rcLeft,
+                            'votedAt' => now(),
+                            'followerId' => $followerId,
                         ]);
 
-                        $jobs->push(new ProcessUpvoteJob($toVote));
+                        $voteTimestamp = strtotime($post['created']);
+
+                        if ($voteTimestamp >= strtotime($lastVotedAt) && $voteTimestamp <= time()) {
+                            $jobs->push(new ProcessUpvoteJob($toVote));
+                        }
                     }
                 }
 
                 if ($jobs->count()) {
-                    // $this->processBatchVotingJob($jobs->toArray());
+                    $follower->last_voted_at = now();
+                    $follower->save();
+
+                    $this->processBatchVotingJob($jobs->toArray());
                 }
 
                 return;
@@ -207,6 +223,7 @@ class Publish extends Command
                             return [
                                 'author' => $post['author'],
                                 'permlink' => $post['permlink'],
+                                'created' => $post['created'],
                             ];
                         });
 
@@ -220,15 +237,27 @@ class Publish extends Command
                                 'limitMana' => $limitMana,
                                 'votingType' => $votingType,
                                 'trailerType' => $trailerType,
+                                'voterWeight' => $voterWeight,
+                                'manaLeft' => $manaLeft,
+                                'rcLeft' => $rcLeft,
+                                'votedAt' => now(),
+                                'followerId' => $followerId,
                             ]);
 
-                            $jobs->push(new ProcessUpvoteJob($toVote));
+                            $voteTimestamp = strtotime($post['created']);
+
+                            if ($voteTimestamp >= strtotime($lastVotedAt) && $voteTimestamp <= time()) {
+                                $jobs->push(new ProcessUpvoteJob($toVote));
+                            }
                         }
                     }
                 }
 
                 if ($jobs->count()) {
-                    $this->processBatchVotingJob($jobs->toArray());
+                    $follower->last_voted_at = now();
+                    $follower->save();
+
+                    $this->dispatch($jobs->toArray());
                 }
 
                 return;

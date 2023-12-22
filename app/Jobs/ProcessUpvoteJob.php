@@ -2,8 +2,10 @@
 
 namespace App\Jobs;
 
+use App\Models\Follower;
 use Illuminate\Bus\Batchable;
 use App\Models\Vote;
+use App\Models\VoteLog;
 use App\Traits\HelperTrait;
 use Hive\Helpers\PrivateKey;
 use Hive\Hive;
@@ -42,7 +44,6 @@ class ProcessUpvoteJob implements ShouldQueue
 
                 if ($hasEnoughMana) {
                     $this->broadcastVote($vote, $postingPrivateKey, $hive);
-
                 }
             }
 
@@ -63,17 +64,24 @@ class ProcessUpvoteJob implements ShouldQueue
         ]);
 
         if (isset($result['trx_id'])) {
-            Vote::updateOrCreate(
-                [
-                    'voter' => $vote->voter,
-                    'author' => $vote->author,
-                    'permlink' => $vote->permlink,
-                ],
-                [
-                    'weight' => $vote->weight,
-                    'is_voted' => true,
-                ]
-            );
+            Follower::where('id', $vote->followerId)
+                ->update([
+                    'last_voted_at' => now()
+                ]);
+
+            VoteLog::create([
+                'voter' => $vote->voter,
+                'author' => $vote->author,
+                'permlink' => $vote->permlink,
+                'author_weight' => $vote->weight,
+                'voter_weight' => $vote->voterWeight,
+                'mana_left' => $vote->manaLeft,
+                'rc_left' => $vote->rcLeft,
+                'trailer_type' => $vote->trailerType,
+                'voting_type' => $vote->votingType,
+                'limit_mana' => $vote->limitMana,
+                'voted_at' => $vote->votedAt,
+            ]);
         }
     }
 }
