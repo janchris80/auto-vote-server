@@ -35,7 +35,7 @@ class ProcessVotesJob implements ShouldQueue
     public function processFollower($follower)
     {
         try {
-            // $followerId = $follower->id;
+            $followerId = $follower->id;
             $hasEnoughMana = false;
             // $discordWebhookUrl = $follower->follower->discord_webhook_url;
             $voter = $follower->follower->username;
@@ -52,6 +52,7 @@ class ProcessVotesJob implements ShouldQueue
             $limitMana = $trailerType === 'downvote' ? $limitDownvoteMana : $limitUpvoteMana;
 
             $hasEnoughResourceCredit = $this->hasEnoughResourceCredit($voter);
+            $rcLeft = intval($this->getResourceCredit() * 100);
 
             if (!$hasEnoughResourceCredit) {
                 return;
@@ -59,6 +60,7 @@ class ProcessVotesJob implements ShouldQueue
 
             $account = $this->getAccounts($voter)->first();
             $hasEnoughMana = $this->hasEnoughMana($account, $trailerType, $limitMana);
+            $manaLeft = $this->getCurrentMana();
 
             if (!$hasEnoughMana) {
                 return;
@@ -67,12 +69,11 @@ class ProcessVotesJob implements ShouldQueue
             if (in_array($trailerType, ['curation', 'downvote'])) {
                 $jobs = collect();
 
-                $history = Cache::remember('get_vote_history_' . $followedAuthor, 90, function () use ($followedAuthor) {
+                $history = Cache::remember('get_vote_history_' . $followedAuthor, 60, function () use ($followedAuthor) {
                     return $this->getVoteAccountHistory($followedAuthor);
                 });
 
                 foreach ($history as $vote) {
-
                     $voteTimestamp = strtotime($vote['timestamp']);
 
                     if ($voteTimestamp >= strtotime($lastVotedAt) && $voteTimestamp <= time()) {
@@ -89,19 +90,23 @@ class ProcessVotesJob implements ShouldQueue
                             'author' => $vote['author'],
                             'permlink' => $vote['permlink'],
                             'weight' => $weight,
+                            'followedAuthor' => $followedAuthor,
                             'limitMana' => $limitMana,
                             'votingType' => $votingType,
                             'trailerType' => $trailerType,
+                            'voterWeight' => $voterWeight,
+                            'manaLeft' => $manaLeft,
+                            'rcLeft' => $rcLeft,
+                            'votedAt' => now(),
+                            'followerId' => $followerId,
                         ]);
 
                         $jobs->push(new ProcessUpvoteJob($toVote));
                     }
                 }
 
+                Log::info('processing ' . $trailerType . ' ' . $followerId, ['job_count' => $jobs->count()]);
                 if ($jobs->count()) {
-                    $follower->last_voted_at = now();
-                    $follower->save();
-
                     $this->processBatchVotingJob($jobs->toArray());
                 }
 
@@ -111,8 +116,8 @@ class ProcessVotesJob implements ShouldQueue
             if ($trailerType === 'upvote_post') {
                 $jobs = collect();
 
-                $posts = Cache::remember('get_account_post_' . $followedAuthor, 90, function () use ($followedAuthor) {
-                    return $this->getAccountPost($followedAuthor);
+                $posts = Cache::remember('get_account_post_' . $followedAuthor, 60, function () use ($followedAuthor) {
+                    return $this->getAccountPosts($followedAuthor);
                 });
 
                 $filteredPosts = $posts
@@ -132,29 +137,38 @@ class ProcessVotesJob implements ShouldQueue
                     });
 
                 foreach ($filteredPosts as $post) {
-                    if ($post['author'] === $followedAuthor) {
-                        $toVote = collect([
-                            'voter' => $voter,
-                            'author' => $post['author'],
-                            'permlink' => $post['permlink'],
-                            'weight' => $follower->weight,
-                            'limitMana' => $limitMana,
-                            'votingType' => $votingType,
-                            'trailerType' => $trailerType,
-                        ]);
 
-                        $voteTimestamp = strtotime($post['created']);
+                    $voteTimestamp = strtotime($post['created']);
 
-                        if ($voteTimestamp >= strtotime($lastVotedAt) && $voteTimestamp <= time()) {
+                    if ($voteTimestamp >= strtotime($lastVotedAt) && $voteTimestamp <= time()) {
+
+                        if ($post['author'] === $followedAuthor) {
+
+                            $weight = $this->calculateVotingWeight($voterWeight, $follower->weight, $votingType);
+
+                            $toVote = collect([
+                                'voter' => $voter,
+                                'author' => $post['author'],
+                                'permlink' => $post['permlink'],
+                                'weight' => $weight,
+                                'followedAuthor' => $followedAuthor,
+                                'limitMana' => $limitMana,
+                                'votingType' => $votingType,
+                                'trailerType' => $trailerType,
+                                'voterWeight' => $voterWeight,
+                                'manaLeft' => $manaLeft,
+                                'rcLeft' => $rcLeft,
+                                'votedAt' => now(),
+                                'followerId' => $followerId,
+                            ]);
+
                             $jobs->push(new ProcessUpvoteJob($toVote));
                         }
                     }
                 }
 
+                Log::info('processing ' . $trailerType . ' ' . $followerId, ['job_count' => $jobs->count()]);
                 if ($jobs->count()) {
-                    $follower->last_voted_at = now();
-                    $follower->save();
-
                     $this->processBatchVotingJob($jobs->toArray());
                 }
 
@@ -163,27 +177,24 @@ class ProcessVotesJob implements ShouldQueue
 
             if ($trailerType === 'upvote_comment') {
                 $jobs = collect();
-                $posts = Cache::remember('get_account_post_' . $voter, 90, function () use ($voter) {
-                    return $this->getAccountPost($voter);
+                $posts = Cache::remember('get_account_post_' . $voter, 60, function () use ($voter) {
+                    return $this->getAccountPosts($voter);
                 });
 
                 $filteredPosts = $posts
                     ->filter(function ($post) use ($voter) {
-                        // Check if any "active_votes" has the specified voter
-                        $hasVoted = collect($post['active_votes'])->pluck('voter')->contains($voter);
-
-                        // If not voted, include the item
-                        return !$hasVoted && $post['author'] === $voter;
+                    return  $post['author'] === $voter;
                     })
                     ->map(function ($post) {
                         return [
                             'author' => $post['author'],
                             'permlink' => $post['permlink'],
+                        'created' => $post['created'],
                         ];
                     });
 
                 foreach ($filteredPosts as $post) {
-                    $replies = Cache::remember('get_content_replies_' . $voter, 90, function () use ($voter, $post) {
+                    $replies = Cache::remember('get_content_replies_' . $voter, 60, function () use ($voter, $post) {
                         return $this->getContentReplies($voter, $post['permlink']);
                     });
 
@@ -195,46 +206,54 @@ class ProcessVotesJob implements ShouldQueue
                             // If not voted, include the item
                             return !$hasVoted && $reply['author'] === $followedAuthor;
                         })
-                        ->map(function ($post) {
+                        ->map(function ($reply) {
                             return [
-                                'author' => $post['author'],
-                                'permlink' => $post['permlink'],
-                                'created' => $post['created'],
+                            'author' => $reply['author'],
+                            'permlink' => $reply['permlink'],
+                            'created' => $reply['created'],
                             ];
                         });
 
                     foreach ($filteredReplies as $reply) {
-                        if ($reply['author'] === $followedAuthor) {
-                            $toVote = collect([
-                                'voter' => $voter,
-                                'author' => $reply['author'],
-                                'permlink' => $reply['permlink'],
-                                'weight' => $follower->weight,
-                                'limitMana' => $limitMana,
-                                'votingType' => $votingType,
-                                'trailerType' => $trailerType,
-                            ]);
 
-                            $voteTimestamp = strtotime($post['created']);
+                        if ($reply['author'] === $followedAuthor) {
+
+                            $voteTimestamp = strtotime($reply['created']);
 
                             if ($voteTimestamp >= strtotime($lastVotedAt) && $voteTimestamp <= time()) {
+                                $weight = $this->calculateVotingWeight($voterWeight, $follower->weight, $votingType);
+
+                                $toVote = collect([
+                                    'voter' => $voter,
+                                    'author' => $reply['author'],
+                                    'permlink' => $reply['permlink'],
+                                    'weight' => $weight,
+                                    'followedAuthor' => $followedAuthor,
+                                    'limitMana' => $limitMana,
+                                    'votingType' => $votingType,
+                                    'trailerType' => $trailerType,
+                                    'voterWeight' => $voterWeight,
+                                    'manaLeft' => $manaLeft,
+                                    'rcLeft' => $rcLeft,
+                                    'votedAt' => now(),
+                                    'followerId' => $followerId,
+                                ]);
+
                                 $jobs->push(new ProcessUpvoteJob($toVote));
                             }
                         }
                     }
                 }
 
+                Log::info('processing ' . $trailerType . ' ' . $followerId, ['job_count' => $jobs->count()]);
                 if ($jobs->count()) {
-                    $follower->last_voted_at = now();
-                    $follower->save();
-
                     $this->processBatchVotingJob($jobs->toArray());
                 }
 
                 return;
             }
         } catch (\Exception $e) {
-            Log::error("Job failed for voter " . $voter . ": " . $e->getMessage());
+            Log::error('Job failed for voter ' . $voter . ": " . $e->getMessage(), ['trace' => $e->getTrace()]);
         }
     }
 }

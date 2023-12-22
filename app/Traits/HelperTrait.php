@@ -14,46 +14,73 @@ use Throwable;
 
 trait HelperTrait
 {
+    public $resourceCredit = 0;
+    public $currentMana = 0;
+    public $fiveDaysInSeconds = 432000; // seconds
+    public $downvoteManaRatio  = 0.25;
+
     public function canMakeRequest($name)
     {
         return !Cache::has('last_api_request_time.' . $name);
     }
 
-    public function getApiData(string $method, $params)
+    /**
+     * Make a POST request to the Hive API.
+     *
+     * @param string $method
+     * @param array $params
+     * @return array
+     */
+    public function getApiData(string $method, array $params): array
     {
-        $response = Http::post(config('hive.api_url_node'), [
-            'jsonrpc' => '2.0',
-            'method' => (string) $method,
-            'params' => $params,
-            'id' => 1,
-        ]);
+        try {
+            $response = Http::post(config('hive.api_url_node'), [
+                'jsonrpc' => '2.0',
+                'method' => $method,
+                'params' => $params,
+                'id' => 1,
+            ]);
 
-        // Decode and return the JSON response
-        return $response->json()['result'] ?? [];
+            // Decode and return the JSON response
+            return $response->json()['result'] ?? [];
+        } catch (\Exception $e) {
+            Log::error('Error in getApiData ' . $method . ': ' . $e->getMessage(), ['trace' => $e->getTrace()]);
+            return [];
+        }
     }
 
-    public function getAccountPost($username): Collection
+    /**
+     * Get posts for a specific Hive account.
+     *
+     * @param string $username
+     * @return Collection
+     */
+    public function getAccountPosts(string $username): Collection
     {
         $response = $this->getApiData('bridge.get_account_posts', [
-            "sort" => "posts",
-            "account" => $username,
-            "limit" => config('hive.account_posts_limit'),
+            'sort' => 'posts',
+            'account' => $username,
+            'limit' => config('hive.account_posts_limit'),
         ]);
 
         return collect($response);
     }
 
-    public function getAccounts(string | array $username, $delayedVotesActive = false): Collection
+    /**
+     * Get account information for one or more Hive accounts.
+     *
+     * @param string|array $username
+     * @param bool $delayedVotesActive
+     * @return Collection
+     */
+    public function getAccounts(string | array $username, bool $delayedVotesActive = false): Collection
     {
-        // check if user is 'string' or ['string', 'string2']
+        // Check if user is 'string' or ['string', 'string2']
         $usernames = is_array($username) ? $username : [$username];
 
-        $response = $this->getApiData('database_api.find_accounts', [
-            'accounts' => $usernames,
-            'delayed_votes_active' => $delayedVotesActive
-        ]);
+        $response = $this->getApiData('condenser_api.get_accounts', [$usernames, $delayedVotesActive]);
 
-        return collect($response['accounts']);
+        return collect($response);
     }
 
     public function getAccountHistory($username): Collection
@@ -72,20 +99,21 @@ trait HelperTrait
     public function getVoteAccountHistory($username): Collection
     {
         return $this->getAccountHistory($username)
-            ->filter(function ($tx) use ($username) {
-                return $tx[1]['op']['value']['voter'] === $username;
+            ->filter(function ($transaction) use ($username) {
+                return $transaction[1]['op']['value']['voter'] === $username;
             })
-            ->map(function ($tx) {
+            ->map(function ($transaction) {
                 return [
-                    'id' => $tx[0],
-                    'timestamp' => $tx[1]['timestamp'],
-                    'voter' => $tx[1]['op']['value']['voter'],
-                    'author' => $tx[1]['op']['value']['author'],
-                    'weight' => $tx[1]['op']['value']['weight'],
-                    'permlink' => $tx[1]['op']['value']['permlink'],
+                    'id' => $transaction[0],
+                    'timestamp' => $transaction[1]['timestamp'],
+                    'voter' => $transaction[1]['op']['value']['voter'],
+                    'author' => $transaction[1]['op']['value']['author'],
+                    'weight' => $transaction[1]['op']['value']['weight'],
+                    'permlink' => $transaction[1]['op']['value']['permlink'],
                 ];
             });
     }
+
 
     public function getContentReplies($username, $permlink): Collection
     {
@@ -117,6 +145,16 @@ trait HelperTrait
         return $activeVotes->contains('voter', $voter);
     }
 
+    public function getResourceCredit(): float
+    {
+        return $this->resourceCredit;
+    }
+
+    public function getCurrentMana(): int
+    {
+        return $this->currentMana;
+    }
+
     public function hasEnoughResourceCredit($voter, $minimumPercentage = 5): bool
     {
         $account = $this->getResourceAccounts($voter)
@@ -127,20 +165,20 @@ trait HelperTrait
 
         $percent = $this->calculateResourceCreditsPercentage($account);
 
+        $this->resourceCredit = $percent;
+
         return $percent >= ($minimumPercentage ?? config('hive.resource_credit_limit'));
     }
 
     public function hasEnoughMana($account, $trailerType, $limitMana): bool
     {
         $currentMana = $this->calculateAccountMana($account, $trailerType);
+        $this->currentMana = $currentMana;
         return $currentMana > $limitMana;
     }
 
     public function calculateResourceCreditsPercentage($data): float
     {
-        // Constants
-        $fiveDaysInSeconds = 432000;
-
         // Current unix timestamp in seconds
         $currentTimestamp = time();
 
@@ -159,7 +197,7 @@ trait HelperTrait
         $elapsedTime = $currentTimestamp - $lastUpdateTime;
 
         // Calculate current resource credits
-        $calculatedResourceCredits = $currentMana + ($elapsedTime * $maxResourceCredits) / $fiveDaysInSeconds;
+        $calculatedResourceCredits = $currentMana + ($elapsedTime * $maxResourceCredits) / $this->fiveDaysInSeconds;
 
         // Ensure calculated resource credits do not exceed the maximum
         if ($calculatedResourceCredits > $maxResourceCredits) {
@@ -170,57 +208,58 @@ trait HelperTrait
         $result['resourceCreditsPercent'] = round((100 * $calculatedResourceCredits) / $maxResourceCredits);
 
         // Calculate resource credits wait time
-        // $result['resourceCreditsWaitTime'] = ((100 - $result['resourceCreditsPercent']) * $fiveDaysInSeconds) / 100;
+        // $result['resourceCreditsWaitTime'] = ((100 - $result['resourceCreditsPercent']) * $this->fiveDaysInSeconds) / 100;
 
-        // Return the result
+        // Return the result resourceCreditsPercent
         return $result['resourceCreditsPercent'];
     }
 
     public function calculateAccountMana($account, $trailerType): int
     {
         // Extracting and processing account details
-        $delegated = floatval(str_replace('VESTS', '', $account['delegated_vesting_shares']));
-        $received = floatval(str_replace('VESTS', '', $account['received_vesting_shares']));
-        $vesting = floatval(str_replace('VESTS', '', $account['vesting_shares']));
+        $delegated = (int)str_replace('VESTS', '', $account['delegated_vesting_shares']);
+        $received = (int)str_replace('VESTS', '', $account['received_vesting_shares']);
+        $vesting = (int)str_replace('VESTS', '', $account['vesting_shares']);
         $withdrawRate = 0;
 
-        if (intval(str_replace('VESTS', '', $account['vesting_withdraw_rate'])) > 0) {
+        // Calculate withdraw rate if applicable
+        if ((int)str_replace('VESTS', '', $account['vesting_withdraw_rate']) > 0) {
             $withdrawRate = min(
-                intval(str_replace('VESTS', '', $account['vesting_withdraw_rate'])),
-                intval(($account['to_withdraw'] - $account['withdrawn']) / 1000000)
+                (int)str_replace('VESTS', '', $account['vesting_withdraw_rate']),
+                (int)(($account['to_withdraw'] - $account['withdrawn']) / 1000000)
             );
         }
 
-        $totalvest = $vesting + $received - $delegated - $withdrawRate;
-        $maxMana = $totalvest * pow(10, 6);
-        $maxManaDown = $maxMana * 0.25;
+        // Calculate total vest and max mana
+        $totalVest = $vesting + $received - $delegated - $withdrawRate;
+        $maxMana = $totalVest * pow(10, 6);
+        $maxManaDown = $maxMana * $this->downvoteManaRatio;
 
-        if ($trailerType === 'downvote') {
-            $deltaDown = time() - $account['downvote_manabar']['last_update_time'];
-            $currentManaDown = $account['downvote_manabar']['current_mana'] + ($deltaDown * $maxManaDown / 432000);
-            $percentageDown = round($currentManaDown / $maxManaDown * 10000);
+        // Determine manabar type based on trailer type
+        $manabarType = $trailerType === 'downvote' ? 'downvote_manabar' : 'voting_manabar';
+        $rate = $trailerType === 'downvote' ? $maxManaDown : $maxMana;
 
-            if (!is_finite($percentageDown)) $percentageDown = 0;
-            if ($percentageDown > 10000) $percentageDown = 10000;
-            elseif ($percentageDown < 0) $percentageDown = 0;
+        // Calculate current mana and percentage
+        $timeDifference = time() - $account[$manabarType]['last_update_time'];
+        $timeAdjustedRate = $timeDifference * $rate;
 
-            $downvotePower = intval($percentageDown);
+        $currentMana = $account[$manabarType]['current_mana'] + ($timeAdjustedRate / $this->fiveDaysInSeconds);
+        $percentage = round($currentMana / ($trailerType === 'downvote' ? $maxManaDown : $maxMana) * 10000);
 
-            return $downvotePower;
-        } else {
-            $delta = time() - $account['voting_manabar']['last_update_time'];
-            $currentMana = $account['voting_manabar']['current_mana'] + ($delta * $maxMana / 432000);
-            $percentage = round($currentMana / $maxMana * 10000);
-
-            if (!is_finite($percentage)) $percentage = 0;
-            if ($percentage > 10000) $percentage = 10000;
-            elseif ($percentage < 0) $percentage = 0;
-
-            $upvotePower = intval($percentage);
-
-            return $upvotePower;
+        // Ensure percentage is within valid range
+        if (!is_finite($percentage)) {
+            $percentage = 0;
         }
+
+        if ($percentage > 10000) {
+            $percentage = 10000;
+        } elseif ($percentage < 0) {
+            $percentage = 0;
+        }
+
+        return (int)$percentage;
     }
+
 
     public function calculateVotingWeight(int $voterWeight, int $authorWeight, string $votingType): int
     {
@@ -248,35 +287,6 @@ trait HelperTrait
         return (int) $result;
     }
 
-
-    public function processUpvotes($transactions, string $voter, int $userWeight, $votingType, int $limitMana)
-    {
-        try {
-            foreach ($transactions as $tx) {
-                $weight = $this->calculateVotingWeight($userWeight, $tx['weight'], $votingType);
-
-                $tx['voter'] = $voter;
-                $tx['weight'] = $weight;
-                $tx['limitMana'] = $limitMana;
-                // $tx['author']
-                // $tx['permlink']
-
-                $toVote = collect([
-                    'voter' => $voter,
-                    'author' => $tx['author'],
-                    'permlink' => $tx['permlink'],
-                    'weight' => $weight,
-                    'limitMana' => $limitMana,
-                    'method' => $votingType,
-                ]);
-
-                ProcessUpvoteJob::dispatch($toVote)->onQueue('voting');
-            }
-        } catch (\Throwable $th) {
-            Log::warning("Process processUpvotes error: " . $th->getMessage());
-        }
-    }
-
     public function processBatchVotingJob(array $jobs)
     {
         Bus::batch($jobs)
@@ -285,7 +295,7 @@ trait HelperTrait
             })
             ->catch(function (Batch $batch, Throwable $e) {
                 // First batch job failure detected...
-                Log::error('error in batch ', [$e->getMessage(), $batch->id]);
+                Log::error('Error in processBatchVotingJob: ' . $e->getMessage(), ['Batch ID' => $batch->id, 'trace' => $e->getTrace()]);
             })
             ->finally(function (Batch $batch) {
                 // The batch has finished executing...

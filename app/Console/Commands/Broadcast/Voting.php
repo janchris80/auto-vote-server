@@ -15,14 +15,29 @@ class Voting extends Command
 
     public function handle()
     {
+        // Follower::query()
+        //     ->whereHas('follower', function ($query) {
+        //         $query->where('is_enable', '=', 1);
+        //     })
+        //     ->with(['user', 'follower'])
+        //     ->where('is_enable', '=', 1)
+        //     ->chunk(100, function ($followers) {
+        //         ProcessVotesJob::dispatch($followers)->onQueue('processing');
+        //     });
+
         Follower::query()
+            ->where('is_enable', '=', 1)
             ->whereHas('follower', function ($query) {
                 $query->where('is_enable', '=', 1);
             })
             ->with(['user', 'follower'])
-            ->where('is_enable', '=', 1)
-            ->chunk(100, function ($followers) {
-                ProcessVotesJob::dispatch($followers)->onQueue('processing');
+            ->get()
+            ->groupBy('user_id')
+            ->each(function ($followers) {
+                $followers->chunk(10)
+                    ->each(function ($followers) {
+                        ProcessVotesJob::dispatch($followers)->onQueue('processing');
+                    });
             });
     }
 }

@@ -136,5 +136,10 @@
                 </div>
             </div>
         </div>
+
+        <script>
+            console.log((Date.now() / 1000) - 1703243508);
+            console.log({{ time() - 1703243508 }});
+        </script>
     </body>
 </html>
