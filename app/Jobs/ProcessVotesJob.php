@@ -105,7 +105,7 @@ class ProcessVotesJob implements ShouldQueue
                     }
                 }
 
-                Log::info('processing ' . $trailerType . ' ' . $followerId, ['job_count' => $jobs->count()]);
+                //Log::info('processing ' . $trailerType . ' ' . $followerId, ['job_count' => $jobs->count()]);
                 if ($jobs->count()) {
                     $this->processBatchVotingJob($jobs->toArray());
                 }
@@ -167,7 +167,7 @@ class ProcessVotesJob implements ShouldQueue
                     }
                 }
 
-                Log::info('processing ' . $trailerType . ' ' . $followerId, ['job_count' => $jobs->count()]);
+                //Log::info('processing ' . $trailerType . ' ' . $followerId, ['job_count' => $jobs->count()]);
                 if ($jobs->count()) {
                     $this->processBatchVotingJob($jobs->toArray());
                 }
@@ -183,13 +183,13 @@ class ProcessVotesJob implements ShouldQueue
 
                 $filteredPosts = $posts
                     ->filter(function ($post) use ($voter) {
-                    return  $post['author'] === $voter;
+                        return  $post['author'] === $voter;
                     })
                     ->map(function ($post) {
                         return [
                             'author' => $post['author'],
                             'permlink' => $post['permlink'],
-                        'created' => $post['created'],
+                            'created' => $post['created'],
                         ];
                     });
 
@@ -208,9 +208,9 @@ class ProcessVotesJob implements ShouldQueue
                         })
                         ->map(function ($reply) {
                             return [
-                            'author' => $reply['author'],
-                            'permlink' => $reply['permlink'],
-                            'created' => $reply['created'],
+                                'author' => $reply['author'],
+                                'permlink' => $reply['permlink'],
+                                'created' => $reply['created'],
                             ];
                         });
 
@@ -245,7 +245,7 @@ class ProcessVotesJob implements ShouldQueue
                     }
                 }
 
-                Log::info('processing ' . $trailerType . ' ' . $followerId, ['job_count' => $jobs->count()]);
+                //Log::info('processing ' . $trailerType . ' ' . $followerId, ['job_count' => $jobs->count()]);
                 if ($jobs->count()) {
                     $this->processBatchVotingJob($jobs->toArray());
                 }

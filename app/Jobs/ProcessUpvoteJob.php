@@ -37,13 +37,15 @@ class ProcessUpvoteJob implements ShouldQueue
 
         try {
             $hasEnoughResourceCredit = $this->hasEnoughResourceCredit($vote->voter);
+            $rcLeft = intval($this->getResourceCredit() * 100);
 
             if ($hasEnoughResourceCredit) {
                 $account = $this->getAccounts($vote->voter)->first();
                 $hasEnoughMana = $this->hasEnoughMana($account, $vote->trailerType, $vote->limitMana);
+                $manaLeft = $this->getCurrentMana();
 
                 if ($hasEnoughMana) {
-                    $this->broadcastVote($vote, $postingPrivateKey, $hive);
+                    $this->broadcastVote($vote, $postingPrivateKey, $hive, $manaLeft, $rcLeft);
                 }
             }
 
@@ -53,7 +55,7 @@ class ProcessUpvoteJob implements ShouldQueue
         }
     }
 
-    protected function broadcastVote($vote, $postingPrivateKey, $hive)
+    protected function broadcastVote($vote, $postingPrivateKey, $hive, $manaLeft, $rcLeft)
     {
         $weight = $vote->votingType === 'downvote' ? intval(-$vote->weight) : intval($vote->weight);
         $result = $hive->broadcast($postingPrivateKey, 'vote', [
@@ -75,8 +77,8 @@ class ProcessUpvoteJob implements ShouldQueue
                 'permlink' => $vote->permlink,
                 'author_weight' => $vote->weight,
                 'voter_weight' => $vote->voterWeight,
-                'mana_left' => $vote->manaLeft,
-                'rc_left' => $vote->rcLeft,
+                'mana_left' => $manaLeft,
+                'rc_left' => $rcLeft,
                 'trailer_type' => $vote->trailerType,
                 'voting_type' => $vote->votingType,
                 'limit_mana' => $vote->limitMana,
