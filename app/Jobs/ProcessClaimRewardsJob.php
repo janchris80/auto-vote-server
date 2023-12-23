@@ -60,56 +60,56 @@ class ProcessClaimRewardsJob implements ShouldQueue
 
         $hasRewards = true;
 
-        if ($this->canMakeRequest('claim.condenser_api.get_accounts')) {
-            $account = $this->makeHttpRequest([
-                'jsonrpc' => '2.0',
-                'method' => 'condenser_api.get_accounts',
-                'params' => [[$username]],
-                'id' => 1,
-            ])[0];
+        // if ($this->canMakeRequest('claim.condenser_api.get_accounts')) {
+        $account = $this->makeHttpRequest([
+            'jsonrpc' => '2.0',
+            'method' => 'condenser_api.get_accounts',
+            'params' => [[$username]],
+            'id' => 1,
+        ])[0];
 
-            // Process the response
-            if (!empty($account)) {
-                $rewardHive = $account['reward_hive_balance'];
-                $rewardHbd = $account['reward_hbd_balance'];
-                $rewardVests = $account['reward_vesting_balance'];
+        // Process the response
+        if (!empty($account)) {
+            $rewardHive = $account['reward_hive_balance'];
+            $rewardHbd = $account['reward_hbd_balance'];
+            $rewardVests = $account['reward_vesting_balance'];
 
-                if ($rewardHive === '0.000 HIVE' && $rewardHbd === '0.000 HBD' && $rewardVests === '0.000000 VESTS') {
-                    // Log::info('No rewards to claim for ' . $username);
-                    $hasRewards = false;
-                } else {
-                    $opParams = [
-                        'account' => $username,
-                        'reward_hive' => $rewardHive,
-                        'reward_hbd' => $rewardHbd,
-                        'reward_vests' => $rewardVests
-                    ];
+            if ($rewardHive === '0.000 HIVE' && $rewardHbd === '0.000 HBD' && $rewardVests === '0.000000 VESTS') {
+                // Log::info('No rewards to claim for ' . $username);
+                $hasRewards = false;
+            } else {
+                $opParams = [
+                    'account' => $username,
+                    'reward_hive' => $rewardHive,
+                    'reward_hbd' => $rewardHbd,
+                    'reward_vests' => $rewardVests
+                ];
 
-                    $hive->broadcast(
-                        $postingPrivateKey,
-                        'claim_reward_balance',
-                        array_values($opParams)
-                    );
-                }
+                $hive->broadcast(
+                    $postingPrivateKey,
+                    'claim_reward_balance',
+                    array_values($opParams)
+                );
             }
+        }
 
-            if ($discordWebhookUrl && $hasRewards) {
-                $message = $hasRewards ? 'Rewards claimed successfully for' : 'No rewards to claim for';
+        if ($discordWebhookUrl && $hasRewards) {
+            $message = $hasRewards ? 'Rewards claimed successfully for' : 'No rewards to claim for';
 
-                $logMessages = <<<LOG
+            $logMessages = <<<LOG
                 ----------------------------------------------------------
                 $message **$username**
                 ----------------------------------------------------------
                 LOG;
 
-                SendDiscordNotificationJob::dispatch($userId, [], $logMessages)->onQueue('notification');
-            }
-
-            // Cache the timestamp of the request
-            Cache::put('last_api_request_time.claim.condenser_api.get_accounts', now(), 60); // 180 seconds cooldown = 3 minutes
-        } else {
-            Log::warning("Rate limit hit claim.condenser_api.get_accounts, delaying the request for follower: " . $follower->id);
+            SendDiscordNotificationJob::dispatch($userId, [], $logMessages)->onQueue('notification');
         }
+
+        // Cache the timestamp of the request
+        // Cache::put('last_api_request_time.claim.condenser_api.get_accounts', now(), 60); // 180 seconds cooldown = 3 minutes
+        // } else {
+        //     Log::warning("Rate limit hit claim.condenser_api.get_accounts, delaying the request for follower: " . $follower->id);
+        // }
     }
 
     protected function canMakeRequest($name)
