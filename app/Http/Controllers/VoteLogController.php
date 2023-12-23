@@ -3,23 +3,34 @@
 namespace App\Http\Controllers;
 
 use App\Models\VoteLog;
-use App\Http\Requests\StoreVoteLogRequest;
-use App\Http\Requests\UpdateVoteLogRequest;
+use App\Http\Resources\VoteLogResource;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class VoteLogController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        try {
+            $validate = $request->validate(['user' => 'required']);
+            $voteLogs = VoteLog::where('voter', $validate['user'])
+                ->paginate(100);
+
+            return VoteLogResource::collection($voteLogs);
+        } catch (ValidationException $e) {
+            // Handle validation errors
+            $errors = $e->errors();
+            return response()->json(['error' => 'Validation failed', 'details' => $errors], 422);
+        }
     }
 
     /**
      * Store a newly created resource in storage.
      */
-    public function store(StoreVoteLogRequest $request)
+    public function store(Request $request)
     {
         //
     }
@@ -35,7 +46,7 @@ class VoteLogController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateVoteLogRequest $request, VoteLog $voteLog)
+    public function update(Request $request, VoteLog $voteLog)
     {
         //
     }
