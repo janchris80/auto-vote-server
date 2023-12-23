@@ -17,7 +17,7 @@ Route::middleware('throttle:30,1')->group(function () {
 });
 
 
-Route::middleware('throttle:5,1')->group(function () {
+Route::middleware('throttle:10,1')->group(function () {
     // Your API routes go here
     Route::get('/vote/logs', [VoteLogController::class, 'index']);
     // Check API status
