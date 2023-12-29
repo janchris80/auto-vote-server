@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Jobs;
+namespace App\Jobs\V1;
 
 use App\Traits\DiscordTrait;
 use Carbon\Carbon;

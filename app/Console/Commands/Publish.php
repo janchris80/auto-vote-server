@@ -2,18 +2,22 @@
 
 namespace App\Console\Commands;
 
-use App\Jobs\ProcessUpvoteJob;
-use App\Jobs\SendDiscordNotificationJob;
+use App\Jobs\V1\ProcessUpvoteJob;
+use App\Jobs\V1\SendDiscordNotificationJob;
 use App\Models\Follower;
+use App\Models\User;
 use App\Models\Vote;
 use App\Traits\HelperTrait;
 use Carbon\Carbon;
+use Exception;
 use Illuminate\Bus\Batch;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Bus;
 use Throwable;
+
+use function Laravel\Prompts\error;
 
 class Publish extends Command
 {
@@ -24,17 +28,89 @@ class Publish extends Command
 
     public function handle()
     {
-        Follower::query()
-            ->whereHas('follower', function ($query) {
-                $query->where('is_enable', '=', 1);
-            })
-            ->with(['user', 'follower'])
-            ->where('is_enable', '=', 1)
-            ->chunk(100, function ($followers) {
-                // ProcessVotesJob::dispatch($followers)->onQueue('processing');
-                $this->processFollowers($followers);
-            });
+        foreach(User::all() as $user) {
+        }
+        $this->checkLimits('iamjc93', '', '', 5000);
     }
+
+    public function checkLimits($voter, $author, $permlink, $weight)
+    {
+        try {
+            // Fetch user's power limit from the database
+            $powerlimit = User::select('limit_upvote_mana')->where('username', $voter)->value('limit_upvote_mana');
+
+            // Fetch user details from the blockchain (adjust the following code based on your actual implementation)
+            $account = $this->getAccounts($voter)->first();
+
+            // On any error, account will be null
+            if (!$account) {
+                return null;
+            }
+
+            $getDynamicglobalProperties = $this->getDynamicGlobalProperties();
+            $tvfs = (int)str_replace('HIVE', '', $getDynamicglobalProperties['total_vesting_fund_hive']);
+            $tvs = (int)str_replace('VESTS', '', $getDynamicglobalProperties['total_vesting_shares']);
+
+            // Extract necessary information from the user details
+            if ($tvfs && $tvs) {
+
+                // Calculating total SP to check against limitation
+                $delegated = (int) str_replace('VESTS', '', $account['delegated_vesting_shares']);
+                $received = (int) str_replace('VESTS', '', $account['received_vesting_shares']);
+                $vesting = (int) str_replace('VESTS', '', $account['vesting_shares']);
+                $totalvest = $vesting + $received - $delegated;
+                $sp = $totalvest * ($tvfs / $tvs);
+                $sp = round($sp, 2);
+
+                // Calculating Mana to check against limitation
+                $withdrawRate = 0;
+
+                if ($account['vesting_withdraw_rate'] > 0) {
+                    $withdrawRate = min(
+                        $account['vesting_withdraw_rate'],
+                        ($account['to_withdraw'] - $account['withdrawn']) / 1000000
+                    );
+                }
+
+                $maxMana = ($totalvest - $withdrawRate) * pow(10, 6);
+
+                if ($maxMana === 0) {
+                    return null;
+                }
+
+                $delta = Carbon::now()->timestamp - $account['voting_manabar']['last_update_time'];
+                $currentMana = $account['voting_manabar']['current_mana'] + ($delta * $maxMana / 432000);
+                $percentage = round($currentMana / $maxMana * 10000);
+
+                if (!is_finite($percentage)) {
+                    $percentage = 0;
+                }
+
+                if ($percentage > 10000) {
+                    $percentage = 10000;
+                } elseif ($percentage < 0) {
+                    $percentage = 0;
+                }
+
+                $powernow = round($percentage / 100, 2);
+
+                if ($powernow > $powerlimit) {
+                    if (($powernow / 100) * ($weight / 10000) * $sp > 3) {
+                        // Don't broadcast upvote if sp*weight*power < 3
+                        return 1;
+                    }
+
+                    return null;
+                }
+
+                return null;
+            }
+        } catch (Exception $e) {
+            dd($e->getMessage());
+            return null;
+        }
+    }
+
 
     public function processFollowers($followers)
     {

@@ -5,14 +5,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Vote extends Model
+class UpvoteComment extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'voter',
         'author',
-        'permlink',
-        'weight',
+        'commenter',
+        'voter_weight',
+        'is_enable',
+        'voting_type',
+        'last_voted_at',
     ];
 }
