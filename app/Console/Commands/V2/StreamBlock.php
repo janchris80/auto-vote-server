@@ -51,8 +51,8 @@ class StreamBlock extends Command
             if (count($operations['post'])) {
                 ProcessUpvotePostsJob::dispatch($operations['post'])->onQueue('post');
             }
-            if (count($operations['vote'])) {
-                ProcessUpvoteCuratorsJob::dispatch($operations['vote'])->onQueue('vote');
+            if (count($operations['curation'])) {
+                ProcessUpvoteCuratorsJob::dispatch($operations['curation'])->onQueue('curation');
             }
         }
     }
@@ -106,7 +106,7 @@ class StreamBlock extends Command
                 ];
             });
 
-        $operations['vote'] = collect($transactions)
+        $operations['curation'] = collect($transactions)
             ->filter(function ($operation) {
                 $editRegex = '/^re-/';
 

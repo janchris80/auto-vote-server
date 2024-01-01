@@ -146,6 +146,13 @@ trait HelperTrait
         return collect($response);
     }
 
+    public function getContent($author, $permlink): Collection
+    {
+        $response = $this->getApiData('condenser_api.get_content', [$author, $permlink]);
+
+        return collect($response);
+    }
+
     public function getActiveVotes($author, $permlink): Collection
     {
         $response = $this->getApiData('condenser_api.get_active_votes', [$author, $permlink]);
@@ -417,7 +424,6 @@ trait HelperTrait
                 return null;
             }
         } catch (Exception $e) {
-            dd($e->getMessage());
             return null;
         }
     }
@@ -447,7 +453,7 @@ trait HelperTrait
     protected function fetchUpvoteCommentAuthors(): array
     {
         return Cache::remember('upvote_comment_authors', $this->fiveMinutesInSecond, function () {
-            return UpvoteComment::select('commenter')->distinct()->pluck('commenter')->toArray();
+            return UpvoteComment::select('author')->distinct()->pluck('author')->toArray();
         });
     }
 
