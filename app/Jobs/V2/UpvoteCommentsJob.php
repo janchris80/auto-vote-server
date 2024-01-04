@@ -2,6 +2,9 @@
 
 namespace App\Jobs\V2;
 
+use App\Traits\HelperTrait;
+use Hive\Hive;
+use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -12,7 +15,7 @@ use Illuminate\Support\Facades\Log;
 
 class UpvoteCommentsJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Batchable, Dispatchable, InteractsWithQueue, Queueable, SerializesModels, HelperTrait;
 
     public $vote;
 
@@ -26,6 +29,28 @@ class UpvoteCommentsJob implements ShouldQueue
      */
     public function handle(): void
     {
-        Log::info('UpvoteCommentsJob Voting', [$this->vote]);
+        Log::info('UpvoteCommentsJob Voting', [$this->vote, $this->getLastBlock()]);
+
+        $hive = new Hive([
+            'rpcNodes' => [
+                'https://rpc.d.buzz/',
+            ],
+            'timeout' => 300
+        ]);
+
+        $postingKey = config('hive.private_key.posting'); // Be cautious with private keys
+        $postingPrivateKey = $hive->privateKeyFrom($postingKey);
+        $vote = $this->vote;
+
+        $hive->broadcast($postingPrivateKey, 'vote', [
+            $vote->voter,      // voter
+            $vote->author,     // author
+            $vote->permlink,   // permlink
+            $vote->weight,     // weight
+        ]);
+
+        if (isset($result['trx_id'])) {
+            //
+        }
     }
 }

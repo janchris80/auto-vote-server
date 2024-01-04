@@ -13,6 +13,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class ProcessUpvoteCommentsJob implements ShouldQueue
 {
@@ -71,18 +72,21 @@ class ProcessUpvoteCommentsJob implements ShouldQueue
                 ->get();
 
             foreach ($fetchUpvoteComments as $comment) {
-                $this->jobs->push(new UpvoteCommentsJob([
-                    'voter' => $comment->author, // voter and author of the post
-                    'author' => $commenter, // followed user, who commented on your post
-                    'weight' => $comment->voter_weight,
-                    'permlink' => $permlink, // the permlink of the commenter on the post
-                ]));
+
+                $checkLimits = $this->checkLimits($comment->author, $commenter, $permlink, $comment->voter_weight);
+
+                if ($checkLimits) {
+                    $this->jobs->push(new UpvoteCommentsJob([
+                        'voter' => $comment->author, // voter and author of the post
+                        'author' => $commenter, // followed user, who commented on your post
+                        'permlink' => $permlink, // the permlink of the commenter on the post
+                        'weight' => $comment->voter_weight,
+                    ]));
+                }
             }
 
-            if (count($this->jobs)) {
-                // Upvote comments
-                // UpvoteCommentsJob::dispatch($filteredOperations)->onQueue('voting');
-                $this->processBatchVotingJob($this->jobs->toArray());
+            if ($this->jobs->count()) {
+                $this->processBatchVotingJob($this->jobs->all());
             }
         } catch (Exception $e) {
             throw new Exception($e->getMessage());

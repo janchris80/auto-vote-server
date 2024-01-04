@@ -13,6 +13,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class ProcessUpvotePostsJob implements ShouldQueue
 {
@@ -111,22 +112,22 @@ class ProcessUpvotePostsJob implements ShouldQueue
 
                     // Process upvote right now
                     // Check limitations
-                    $result = $this->checkLimits($voter, $author, $permlink, $weight);
+                    $checkLimits = $this->checkLimits($voter, $author, $permlink, $weight);
 
                     // Broadcast upvote if user details are not limited
-                    if ($result) {
+                    if ($checkLimits) {
 
                         $this->jobs->push(new UpvotePostsJob([
                             'voter' => $voter,
                             'author' => $author,
-                            'weight' => $weight,
                             'permlink' => $permlink,
+                            'weight' => $weight,
                         ]));
                     }
                 }
 
                 if ($this->jobs->count()) {
-                    $this->processBatchVotingJob($this->jobs->toArray());
+                    $this->processBatchVotingJob($this->jobs->all());
                 }
             }
         } catch (Exception $e) {

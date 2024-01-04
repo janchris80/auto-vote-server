@@ -3,12 +3,14 @@
 namespace App\Traits;
 
 use App\Jobs\V1\ProcessUpvoteJob;
+use App\Models\Downvote;
 use App\Models\UpvoteComment;
 use App\Models\UpvoteCurator;
 use App\Models\UpvotePost;
 use App\Models\User;
 use Carbon\Carbon;
 use Exception;
+use Hive\Hive;
 use Illuminate\Bus\Batch;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
@@ -334,6 +336,7 @@ trait HelperTrait
             ->allowFailures()
             ->onQueue('voting')
             ->name('voting')
+            ->onConnection('redis')
             ->dispatch();
     }
 
@@ -362,7 +365,7 @@ trait HelperTrait
 
             // On any error, account will be null
             if (!$account) {
-                return null;
+                return false;
             }
 
             $getDynamicglobalProperties = $this->getDynamicGlobalProperties();
@@ -393,7 +396,7 @@ trait HelperTrait
                 $maxMana = ($totalvest - $withdrawRate) * pow(10, 6);
 
                 if ($maxMana === 0) {
-                    return null;
+                    return false;
                 }
 
                 $delta = Carbon::now()->timestamp - $account['voting_manabar']['last_update_time'];
@@ -410,21 +413,21 @@ trait HelperTrait
                     $percentage = 0;
                 }
 
-                $powernow = round($percentage / 100, 2);
+                $powernow = round($percentage, 2);
 
                 if ($powernow > $powerlimit) {
                     if (($powernow / 100) * ($weight / 10000) * $sp > 3) {
                         // Don't broadcast upvote if sp*weight*power < 3
-                        return 1;
+                        return true;
                     }
 
-                    return null;
+                    return false;
                 }
 
-                return null;
+                return false;
             }
         } catch (Exception $e) {
-            return null;
+            return false;
         }
     }
 
@@ -475,6 +478,13 @@ trait HelperTrait
     {
         return Cache::remember('upvote_curator_authors', $this->fiveMinutesInSecond, function () {
             return UpvoteCurator::select('author')->distinct()->pluck('author')->toArray();
+        });
+    }
+
+    protected function fetchDownvoteFollowedAuthors(): array
+    {
+        return Cache::remember('upvote_curator_authors', $this->fiveMinutesInSecond, function () {
+            return Downvote::select('author')->distinct()->pluck('author')->toArray();
         });
     }
 }

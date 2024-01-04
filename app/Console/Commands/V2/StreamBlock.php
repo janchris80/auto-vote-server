@@ -10,13 +10,14 @@ use App\Models\UpvotePost;
 use App\Traits\HelperTrait;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class StreamBlock extends Command
 {
     use HelperTrait;
 
     protected $signature = 'stream:block';
-    protected $description = 'Stream block';
+    protected $description = 'Get transactions within the block';
 
     public function handle()
     {
@@ -46,82 +47,114 @@ class StreamBlock extends Command
             $operations = $this->pluckOperations($streamBlockOperations, $lastBlock);
 
             if (count($operations['comment'])) {
+                Log::info('operations comment', $operations['comment']);
                 ProcessUpvoteCommentsJob::dispatch($operations['comment'])->onQueue('comment');
             }
             if (count($operations['post'])) {
+                Log::info('operations post', $operations['post']);
                 ProcessUpvotePostsJob::dispatch($operations['post'])->onQueue('post');
             }
             if (count($operations['curation'])) {
+                Log::info('operations curation', $operations['curation']);
                 ProcessUpvoteCuratorsJob::dispatch($operations['curation'])->onQueue('curation');
             }
+            if (count($operations['downvote'])) {
+                Log::info('operations downvote', $operations['downvote']);
+                // Add later for downvote
+            }
+
+            // if (count($operations['comment']) || count($operations['post']) || count($operations['curation']) || count($operations['downvote'])) {
+            // Log::info('operations', $operations);
+            // }
+            Log::info('lastBlock: ' . $lastBlock);
         }
     }
 
     protected function retryFetchingBlockOperations($lastBlock, &$retryCount, $maxRetries)
     {
-        $streamBlockOperations = null;
+        $streamBlockOperations['ops'] = [];
 
-        while (empty($streamBlockOperations) && $retryCount < $maxRetries) {
-            $retryCount++;
+        while (count($streamBlockOperations['ops'] ?? []) === 0 && $retryCount < $maxRetries) {
+            $streamBlockOperations = $this->getApiData('account_history_api.get_ops_in_block', [
+                'block_num' => $lastBlock,
+                'only_virtual' => false,
+            ]);
 
-            $streamBlockOperations = $this->getApiData('condenser_api.get_block', [$lastBlock]);
+            $retryCount += 1;
         }
 
-        return $streamBlockOperations;
+        return $streamBlockOperations['ops'] ?? [];
     }
 
     protected function pluckOperations($streamBlockOperations, $lastBlock)
     {
-        $transactions = collect($streamBlockOperations['transactions'])
-            ->pluck('operations.0')
-            ->toArray();
+        $transactions = collect($streamBlockOperations)
+            ->filter(function ($operation) {
+                return in_array($operation['op']['type'], ['comment_operation', 'vote_operation']);
+            });
 
         $operations['comment'] = collect($transactions)
             ->filter(function ($operation) {
-                return $operation[0] === 'comment'
-                    && $operation[1]['parent_author'] !== ''
-                    && in_array($operation[1]['parent_author'], $this->fetchUpvoteCommentAuthors());
+                return $operation['op']['type'] === 'comment_operation'
+                    && in_array($operation['op']['value']['parent_author'], $this->fetchUpvoteCommentAuthors())
+                    && $operation['op']['value']['parent_author'] !== '';
             })
-            ->map(function ($comment) {
+            ->map(function ($operation) {
                 return [
-                    'parent_author' => $comment[1]['parent_author'],
-                    'author' => $comment[1]['author'],
-                    'permlink' => $comment[1]['permlink'],
-                    'parent_permlink' => $comment[1]['parent_permlink'],
+                    'parent_author' => $operation['op']['value']['parent_author'],
+                    'author' => $operation['op']['value']['author'],
+                    'permlink' => $operation['op']['value']['permlink'],
+                    'parent_permlink' => $operation['op']['value']['parent_permlink'],
                 ];
             });
 
         $operations['post'] = collect($transactions)
             ->filter(function ($operation) {
                 $editRegex = '/^(@@+.+@@)/';
-                return $operation[0] === 'comment'
-                    && $operation[1]['parent_author'] === ''
-                    && in_array($operation[1]['author'], $this->fetchUpvotePostAuthors())
-                    && !preg_match($editRegex, $operation[1]['body']);
+                return $operation['op']['type'] === 'comment_operation'
+                    && $operation['op']['value']['parent_author'] === ''
+                    && in_array($operation['op']['value']['author'], $this->fetchUpvotePostAuthors())
+                    && !preg_match($editRegex, $operation['op']['value']['body']);
             })
-            ->map(function ($post) {
+            ->map(function ($operation) {
                 return [
-                    'author' => $post[1]['author'],
-                    'permlink' => $post[1]['permlink'],
+                    'author' => $operation['op']['value']['author'],
+                    'permlink' => $operation['op']['value']['permlink'],
                 ];
             });
 
         $operations['curation'] = collect($transactions)
             ->filter(function ($operation) {
-                $editRegex = '/^re-/';
+                $reRegex = '/^re-/';
 
-                return $operation[0] === 'vote'
-                    && $operation[1]['weight'] > 0
-                    && $operation[1]['voter'] !== $operation[1]['author']
-                    && in_array($operation[1]['voter'], $this->fetchUpvoteCurationFollowedAuthors())
-                    && !preg_match($editRegex, $operation[1]['permlink']);
+                return $operation['op']['type'] === 'vote_operation'
+                    && $operation['op']['value']['weight'] > 0
+                    && $operation['op']['value']['voter'] !== $operation['op']['value']['author']
+                    && in_array($operation['op']['value']['voter'], $this->fetchUpvoteCurationFollowedAuthors())
+                    && !preg_match($reRegex, $operation['op']['value']['permlink']);
             })
             ->map(function ($post) {
-                return $post[1];
+                return $post['op']['value'];
+            });
+
+        $operations['downvote'] = collect($transactions)
+            ->filter(function ($operation) {
+                $reRegex = '/^re-/';
+
+                return $operation['op']['type'] === 'vote_operation'
+                    && $operation['op']['value']['weight'] < 0
+                    && $operation['op']['value']['voter'] !== $operation['op']['value']['author']
+                    && in_array($operation['op']['value']['voter'], $this->fetchDownvoteFollowedAuthors())
+                    && !preg_match($reRegex, $operation['op']['value']['permlink']);
+            })
+            ->map(function ($post) {
+                return $post['op']['value'];
             });
 
         // Update the value in the cache
-        Cache::forever('last_block', $lastBlock);
+        if (count($streamBlockOperations) > 0) {
+            Cache::forever('last_block', $lastBlock);
+        }
 
         return $operations;
     }

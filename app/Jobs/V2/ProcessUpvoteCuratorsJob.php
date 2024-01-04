@@ -13,6 +13,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Termwind\Components\BreakLine;
 
 class ProcessUpvoteCuratorsJob implements ShouldQueue
@@ -92,7 +93,7 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
                         $voterWeight = $curator->voter_weight;
 
                         if ($curator->voting_type === 'scaled') {
-                            $voterWeight = (int)(($weight / 10000) * $weight);
+                            $voterWeight = (int)(($voterWeight / 10000) * $weight);
                         }
 
                         $checkLimits = $this->checkLimits($follower, $author, $permlink, $voterWeight);
@@ -101,16 +102,15 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
                             $this->jobs->push(new UpvoteCuratorsJob([
                                 'voter' => $follower,
                                 'author' => $author,
-                                'weight' => $voterWeight,
                                 'permlink' => $permlink,
+                                'weight' => $voterWeight,
                             ]));
                         }
                     }
                 }
 
-                if (count($this->jobs)) {
-                    // Upvote comments
-                    $this->dispatchSync($this->jobs->toArray());
+                if ($this->jobs->count()) {
+                    $this->processBatchVotingJob($this->jobs->all());
                 }
             }
         } catch (Exception $e) {
