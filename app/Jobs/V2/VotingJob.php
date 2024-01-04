@@ -2,6 +2,7 @@
 
 namespace App\Jobs\V2;
 
+use App\Models\UpvotedComment;
 use App\Traits\HelperTrait;
 use Hive\Hive;
 use Illuminate\Bus\Batchable;
@@ -13,21 +14,19 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class UpvoteCuratorsJob implements ShouldQueue
+class VotingJob implements ShouldQueue
 {
     use Batchable, Dispatchable, InteractsWithQueue, Queueable, SerializesModels, HelperTrait;
 
     public $vote;
+
     public function __construct($vote)
     {
         $this->vote = $vote;
     }
 
-
     public function handle(): void
     {
-        Log::info('UpvoteCuratorsJob Voting', [$this->vote, $this->getLastBlock()]);
-
         $hive = new Hive([
             'rpcNodes' => [
                 'https://rpc.d.buzz/',
@@ -39,16 +38,21 @@ class UpvoteCuratorsJob implements ShouldQueue
         $postingPrivateKey = $hive->privateKeyFrom($postingKey);
         $vote = $this->vote;
 
-        $hive->broadcast($postingPrivateKey, 'vote', [
-            $vote->voter,      // voter
-            $vote->author,     // author
-            $vote->permlink,   // permlink
-            $vote->weight,     // weight
+        $result = $hive->broadcast($postingPrivateKey, 'vote', [
+            $vote['voter'],      // voter
+            $vote['author'],     // author
+            $vote['permlink'],   // permlink
+            $vote['weight'],     // weight
         ]);
+
+        if ($vote['trailer_type'] === 'upvote_comment') {
+            UpvotedComment::create($vote);
+        }
+
+        Log::info('result of voter '. $vote['voter'], [$result, $vote]);
 
         if (isset($result['trx_id'])) {
             //
         }
-
     }
 }

@@ -3,7 +3,7 @@
 namespace App\Jobs\V2;
 
 use App\Models\UpvoteComment;
-use App\Models\VoteLog;
+use App\Models\UpvotedComment;
 use App\Traits\HelperTrait;
 use Exception;
 use Illuminate\Bus\Queueable;
@@ -50,13 +50,13 @@ class ProcessUpvoteCommentsJob implements ShouldQueue
     protected function processCommentBlockOperations($voter, $commenter, $permlink, $parent_permlink)
     {
         try {
-            $fetchVoteLogs = VoteLog::where('voter', $voter)
+            $fetchUpvotedComments = UpvotedComment::query()
+                ->where('voter', $voter)
                 ->where('author', $commenter)
                 ->where('permlink', $permlink)
-                ->where('trailer_type', 'upvote_comment')
                 ->first();
 
-            if ($fetchVoteLogs) {
+            if ($fetchUpvotedComments) {
                 return null;
             }
 
@@ -76,11 +76,12 @@ class ProcessUpvoteCommentsJob implements ShouldQueue
                 $checkLimits = $this->checkLimits($comment->author, $commenter, $permlink, $comment->voter_weight);
 
                 if ($checkLimits) {
-                    $this->jobs->push(new UpvoteCommentsJob([
+                    $this->jobs->push(new VotingJob([
                         'voter' => $comment->author, // voter and author of the post
                         'author' => $commenter, // followed user, who commented on your post
                         'permlink' => $permlink, // the permlink of the commenter on the post
                         'weight' => $comment->voter_weight,
+                        'trailer_type' => 'upvote_comment',
                     ]));
                 }
             }

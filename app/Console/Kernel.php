@@ -23,7 +23,7 @@ class Kernel extends ConsoleKernel
         // $schedule->command('publish:test')->everyMinute();
         // $schedule->command('app:test')->everySecond();
         $schedule->command('stream:block')->everySecond();
-        $schedule->command('app:update-cache-command')->everyFiveMinutes();
+        // $schedule->command('app:update-cache-command')->everyFiveMinutes();
     }
 
     /**

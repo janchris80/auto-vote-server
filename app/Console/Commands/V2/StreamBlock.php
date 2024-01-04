@@ -47,26 +47,26 @@ class StreamBlock extends Command
             $operations = $this->pluckOperations($streamBlockOperations, $lastBlock);
 
             if (count($operations['comment'])) {
-                Log::info('operations comment', $operations['comment']);
+                Log::info('operations comment', $operations['comment']->toArray());
                 ProcessUpvoteCommentsJob::dispatch($operations['comment'])->onQueue('comment');
             }
             if (count($operations['post'])) {
-                Log::info('operations post', $operations['post']);
+                Log::info('operations post', $operations['post']->toArray());
                 ProcessUpvotePostsJob::dispatch($operations['post'])->onQueue('post');
             }
             if (count($operations['curation'])) {
-                Log::info('operations curation', $operations['curation']);
+                Log::info('operations curation', $operations['curation']->toArray());
                 ProcessUpvoteCuratorsJob::dispatch($operations['curation'])->onQueue('curation');
             }
             if (count($operations['downvote'])) {
-                Log::info('operations downvote', $operations['downvote']);
+                Log::info('operations downvote', $operations['downvote']->toArray());
                 // Add later for downvote
             }
 
             // if (count($operations['comment']) || count($operations['post']) || count($operations['curation']) || count($operations['downvote'])) {
             // Log::info('operations', $operations);
             // }
-            Log::info('lastBlock: ' . $lastBlock);
+            // Log::info('lastBlock: ' . $lastBlock);
         }
     }
 
@@ -81,6 +81,10 @@ class StreamBlock extends Command
             ]);
 
             $retryCount += 1;
+
+            if (count($streamBlockOperations['ops'] ?? []) === 0) {
+                usleep(500000); // 1,000,000 microsecond = 1 second, 500,000microsecond = 0.5 second
+            }
         }
 
         return $streamBlockOperations['ops'] ?? [];
@@ -112,8 +116,8 @@ class StreamBlock extends Command
             ->filter(function ($operation) {
                 $editRegex = '/^(@@+.+@@)/';
                 return $operation['op']['type'] === 'comment_operation'
-                    && $operation['op']['value']['parent_author'] === ''
                     && in_array($operation['op']['value']['author'], $this->fetchUpvotePostAuthors())
+                    && $operation['op']['value']['parent_author'] === ''
                     && !preg_match($editRegex, $operation['op']['value']['body']);
             })
             ->map(function ($operation) {
@@ -128,9 +132,9 @@ class StreamBlock extends Command
                 $reRegex = '/^re-/';
 
                 return $operation['op']['type'] === 'vote_operation'
+                    && in_array($operation['op']['value']['voter'], $this->fetchUpvoteCurationFollowedAuthors())
                     && $operation['op']['value']['weight'] > 0
                     && $operation['op']['value']['voter'] !== $operation['op']['value']['author']
-                    && in_array($operation['op']['value']['voter'], $this->fetchUpvoteCurationFollowedAuthors())
                     && !preg_match($reRegex, $operation['op']['value']['permlink']);
             })
             ->map(function ($post) {
@@ -142,9 +146,9 @@ class StreamBlock extends Command
                 $reRegex = '/^re-/';
 
                 return $operation['op']['type'] === 'vote_operation'
+                    && in_array($operation['op']['value']['voter'], $this->fetchDownvoteFollowedAuthors())
                     && $operation['op']['value']['weight'] < 0
                     && $operation['op']['value']['voter'] !== $operation['op']['value']['author']
-                    && in_array($operation['op']['value']['voter'], $this->fetchDownvoteFollowedAuthors())
                     && !preg_match($reRegex, $operation['op']['value']['permlink']);
             })
             ->map(function ($post) {

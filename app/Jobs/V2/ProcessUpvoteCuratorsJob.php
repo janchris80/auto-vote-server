@@ -3,8 +3,8 @@
 namespace App\Jobs\V2;
 
 use App\Models\UpvoteCurator;
-use App\Models\VoteLog;
 use App\Traits\HelperTrait;
+use Carbon\Carbon;
 use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -14,7 +14,6 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
-use Termwind\Components\BreakLine;
 
 class ProcessUpvoteCuratorsJob implements ShouldQueue
 {
@@ -43,6 +42,10 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
                     $operation['weight'],
                 );
             }
+
+            if ($this->jobs->count()) {
+                $this->processBatchVotingJob($this->jobs->all());
+            }
         } catch (Exception $e) {
             throw new Exception($e->getMessage());
         }
@@ -67,10 +70,16 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
                 return null;
             }
 
-            if ($getContent['parent_author'] === '') {
+            $created = Carbon::parse($getContent['created']);
+            $now = Carbon::now();
+            // Calculate the time difference in seconds
+            $timeDifferenceInSeconds = $now->diffInSeconds($created);
+
+            // Skip posts which are older than 6.5 days (561600 seconds)
+            if ($timeDifferenceInSeconds < 561600 && $getContent['parent_author'] === '') {
                 $fetchUpvoteCurators = UpvoteCurator::query()
                     ->select(
-                        'author', // followed user
+                        // 'author', // followed user
                         'voter', // voter
                         'voter_weight',
                         'voting_type',
@@ -79,15 +88,17 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
                     ->where('author', $followed)
                     ->get();
 
+
                 foreach ($fetchUpvoteCurators as $curator) {
+
                     $voted = false;
                     $follower = $curator->voter;
                     foreach ($getContent['active_votes'] as $activeVote) {
                         if ($activeVote['voter'] === $curator->voter) {
                             $voted = true;
-                            break;
                         }
                     }
+                    Log::info('curator', ['isVoted' => $voted, $curator]);
 
                     if (!$voted) {
                         $voterWeight = $curator->voter_weight;
@@ -99,11 +110,12 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
                         $checkLimits = $this->checkLimits($follower, $author, $permlink, $voterWeight);
 
                         if ($checkLimits) {
-                            $this->jobs->push(new UpvoteCuratorsJob([
+                            $this->jobs->push(new VotingJob([
                                 'voter' => $follower,
                                 'author' => $author,
                                 'permlink' => $permlink,
                                 'weight' => $voterWeight,
+                                'trailer_type' => 'curation',
                             ]));
                         }
                     }

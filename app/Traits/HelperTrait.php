@@ -63,15 +63,13 @@ trait HelperTrait
             $totalSize += $responseSizeKB;
 
             // Save the updated total size to the cache
-            Cache::forever('data_size', $totalSize);
+            // Cache::forever('data_size', $totalSize);
 
             // Decode and return the JSON response
             return $response->json()['result'] ?? [];
         } catch (\Exception $e) {
-            Log::error('Error in getApiData ' . $method . ': ' . $e->getMessage(), ['trace' => $e->getTrace()]);
-            return [
-                'message' => $e->getMessage(),
-            ];
+            Log::error('Error in getApiData ' . $method . ': ' . $e->getMessage());
+            return [];
         }
     }
 
@@ -358,7 +356,11 @@ trait HelperTrait
     {
         try {
             // Fetch user's power limit from the database
-            $powerlimit = User::select('limit_upvote_mana')->where('username', $voter)->value('limit_upvote_mana');
+            $powerlimit = User::select('limit_upvote_mana')
+                ->where('is_enable', 1)
+                ->where('is_pause', 0)
+                ->where('username', $voter)
+                ->value('limit_upvote_mana');
 
             // Fetch user details from the blockchain (adjust the following code based on your actual implementation)
             $account = $this->getAccounts($voter)->first();
