@@ -18,7 +18,7 @@ class Kernel extends ConsoleKernel
     {
         // $schedule->command('inspire')->hourly();
         // $schedule->command('broadcast:voting')->everyMinute();
-        // $schedule->command('broadcast:claim-rewards')->everyFifteenMinutes();
+        $schedule->command('broadcast:claim-rewards')->everyFifteenMinutes();
 
         // $schedule->command('publish:test')->everyMinute();
         // $schedule->command('app:test')->everySecond();

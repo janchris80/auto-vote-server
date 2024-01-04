@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Trailer;
+use App\Models\User;
 use App\Models\UpvoteComment;
 use App\Models\UpvoteCurator;
 use App\Models\UpvotedComment;
@@ -23,12 +23,17 @@ class TestCommand extends Command
 
     public function handle()
     {
-        $fetchUpvotedComments = UpvotedComment::query()
-            ->where('voter', 'iamjco')
-            ->where('author', 'qwe')
-            ->where('permlink', 'qweqewq')
-            ->first();
 
-        dd($fetchUpvotedComments);
+        $test  = UpvotePost::query()
+            ->whereHas('user', function ($query) {
+                $query->where('is_enable', true);
+            })
+            ->where('is_enable', true)
+            ->distinct()
+            ->pluck('author');
+
+
+
+        dd($test->toArray());
     }
 }

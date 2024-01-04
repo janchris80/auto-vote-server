@@ -17,4 +17,9 @@ class Downvote extends Model
         'voting_type',
         'last_voted_at',
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'voter', 'username');
+    }
 }

@@ -108,6 +108,7 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
                         }
 
                         $checkLimits = $this->checkLimits($follower, $author, $permlink, $voterWeight);
+                        Log::info('curator $checkLimits', ['$checkLimits' => $checkLimits]);
 
                         if ($checkLimits) {
                             $this->jobs->push(new VotingJob([

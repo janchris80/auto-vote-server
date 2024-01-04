@@ -15,4 +15,5 @@ class UpvotedComment extends Model
         'permlink',
         'weight',
     ];
+    
 }

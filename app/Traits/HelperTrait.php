@@ -362,6 +362,10 @@ trait HelperTrait
                 ->where('username', $voter)
                 ->value('limit_upvote_mana');
 
+            if ($powerlimit) {
+                return false;
+            }
+
             // Fetch user details from the blockchain (adjust the following code based on your actual implementation)
             $account = $this->getAccounts($voter)->first();
 
@@ -436,7 +440,14 @@ trait HelperTrait
     public function fetchUpvotePostAuthors(): array
     {
         return Cache::remember('upvote_post_authors', $this->fiveMinutesInSecond, function () {
-            return UpvotePost::select('author')->distinct()->pluck('author')->toArray();
+            return UpvotePost::query()
+                ->whereHas('user', function ($query) {
+                    $query->where('is_enable', true);
+                })
+                ->where('is_enable', true)
+                ->distinct()
+                ->pluck('author')
+                ->toArray();
         });
     }
 
@@ -451,6 +462,10 @@ trait HelperTrait
                 'voting_type',
                 'last_voted_at'
             )
+            ->whereHas('user', function ($query) {
+                $query->where('is_enable', true);
+            })
+            ->where('is_enable', true)
             ->where('author', $author)
             ->get();
     }
@@ -458,35 +473,62 @@ trait HelperTrait
     protected function fetchUpvoteCommentAuthors(): array
     {
         return Cache::remember('upvote_comment_authors', $this->fiveMinutesInSecond, function () {
-            return UpvoteComment::select('author')->distinct()->pluck('author')->toArray();
+            return UpvoteComment::query()
+                ->whereHas('user', function ($query) {
+                    $query->where('is_enable', true);
+                })
+                ->where('is_enable', true)
+                ->distinct()
+                ->pluck('author')
+                ->toArray();
         });
     }
 
     protected function fetchUpvoteComments()
     {
         return Cache::remember('upvote_comment', $this->fiveMinutesInSecond, function () {
-            return UpvoteComment::select(
-                'author',
-                'commenter',
-                'voter_weight',
-                'is_enable',
-                'voting_type',
-                'last_voted_at'
-            )->get();
+            return UpvoteComment::query()
+                ->select(
+                    'author',
+                    'commenter',
+                    'voter_weight',
+                    'is_enable',
+                    'voting_type',
+                    'last_voted_at'
+                )
+                ->where('is_enable', true)
+                ->whereHas('user', function ($query) {
+                    $query->where('is_enable', true);
+                })
+                ->get();
         });
     }
 
     protected function fetchUpvoteCurationFollowedAuthors(): array
     {
         return Cache::remember('upvote_curator_authors', $this->fiveMinutesInSecond, function () {
-            return UpvoteCurator::select('author')->distinct()->pluck('author')->toArray();
+            return UpvoteCurator::query()
+                ->whereHas('user', function ($query) {
+                    $query->where('is_enable', true);
+                })
+                ->where('is_enable', true)
+                ->distinct()
+                ->pluck('author')
+                ->toArray();
         });
     }
 
     protected function fetchDownvoteFollowedAuthors(): array
     {
         return Cache::remember('upvote_curator_authors', $this->fiveMinutesInSecond, function () {
-            return Downvote::select('author')->distinct()->pluck('author')->toArray();
+            return Downvote::select('author')
+                ->whereHas('user', function ($query) {
+                    $query->where('is_enable', true);
+                })
+                ->where('is_enable', true)
+                ->distinct()
+                ->pluck('author')
+                ->toArray();
         });
     }
 }
