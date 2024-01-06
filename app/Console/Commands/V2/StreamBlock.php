@@ -47,19 +47,19 @@ class StreamBlock extends Command
             $operations = $this->pluckOperations($streamBlockOperations, $lastBlock);
 
             if (count($operations['comment'])) {
-                Log::info('operations comment', $operations['comment']->toArray());
+                Log::info('operations ' . $lastBlock . ' comment', $operations['comment']->toArray());
                 ProcessUpvoteCommentsJob::dispatch($operations['comment'])->onQueue('comment');
             }
             if (count($operations['post'])) {
-                Log::info('operations post', $operations['post']->toArray());
+                Log::info('operations ' . $lastBlock . ' post', $operations['post']->toArray());
                 ProcessUpvotePostsJob::dispatch($operations['post'])->onQueue('post');
             }
             if (count($operations['curation'])) {
-                Log::info('operations curation', $operations['curation']->toArray());
+                Log::info('operations ' . $lastBlock . ' curation', $operations['curation']->toArray());
                 ProcessUpvoteCuratorsJob::dispatch($operations['curation'])->onQueue('curation');
             }
             if (count($operations['downvote'])) {
-                Log::info('operations downvote', $operations['downvote']->toArray());
+                Log::info('operations ' . $lastBlock . ' downvote', $operations['downvote']->toArray());
                 // Add later for downvote
             }
 

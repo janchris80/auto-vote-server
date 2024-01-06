@@ -52,15 +52,15 @@ trait HelperTrait
                 'id' => 1,
             ]);
 
-            $guzzleResponse = $response->toPsrResponse();
-            $responseSize = $guzzleResponse->getBody()->getSize();
-            $responseSizeKB = number_format($responseSize / 1024, 2);
+            // $guzzleResponse = $response->toPsrResponse();
+            // $responseSize = $guzzleResponse->getBody()->getSize();
+            // $responseSizeKB = number_format($responseSize / 1024, 2);
 
             // Retrieve the current total size from the cache
-            $totalSize = Cache::get('data_size', 0);
+            // $totalSize = Cache::get('data_size', 0);
 
             // Add the current response size to the total
-            $totalSize += $responseSizeKB;
+            // $totalSize += $responseSizeKB;
 
             // Save the updated total size to the cache
             // Cache::forever('data_size', $totalSize);
@@ -362,7 +362,7 @@ trait HelperTrait
                 ->where('username', $voter)
                 ->value('limit_upvote_mana');
 
-            if ($powerlimit) {
+            if (!$powerlimit) {
                 return false;
             }
 
@@ -520,7 +520,7 @@ trait HelperTrait
 
     protected function fetchDownvoteFollowedAuthors(): array
     {
-        return Cache::remember('upvote_curator_authors', $this->fiveMinutesInSecond, function () {
+        return Cache::remember('upvote_downvote_authors', $this->fiveMinutesInSecond, function () {
             return Downvote::select('author')
                 ->whereHas('user', function ($query) {
                     $query->where('is_enable', true);

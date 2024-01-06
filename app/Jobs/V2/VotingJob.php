@@ -45,11 +45,7 @@ class VotingJob implements ShouldQueue
             $vote['weight'],     // weight
         ]);
 
-        if ($vote['trailer_type'] === 'upvote_comment') {
-            UpvotedComment::create($vote);
-        }
-        
-        if ($vote['trailer_type'] === 'upvote_comment') {
+        if (isset($vote['trailer_type']) && $vote['trailer_type'] === 'upvote_comment') {
             UpvotedComment::create($vote);
         }
 

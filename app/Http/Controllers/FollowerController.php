@@ -6,15 +6,23 @@ use App\Models\Follower;
 use App\Http\Requests\StoreFollowerRequest;
 use App\Http\Requests\UnfollowFollowerRequest;
 use App\Http\Requests\UpdateFollowerRequest;
+use App\Http\Resources\CommentResource;
+use App\Http\Resources\CurationResource;
 use App\Http\Resources\FollowingResource;
 use App\Http\Resources\FollowingUpvoteCommentResource;
 use App\Http\Resources\FollowingUpvotePostResource;
 use App\Http\Resources\GetUserFollowerResource;
 use App\Http\Resources\PopularResource;
+use App\Http\Resources\PostResource;
+use App\Models\Downvote;
 use App\Models\Trailer;
+use App\Models\UpvoteComment;
+use App\Models\UpvoteCurator;
+use App\Models\UpvotePost;
 use App\Models\User;
 use App\Traits\HttpResponses;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class FollowerController extends Controller
 {
@@ -71,15 +79,15 @@ class FollowerController extends Controller
 
     public function getFollowingCuration()
     {
-        // Get the ID of the authenticated user
-        $userId = auth()->id();
-
-        $followings = User::query()
-            ->whereHasFollower($userId, 'curation')
-            ->withFollower($userId, 'curation')
+        $user = auth()->user();
+        $followings = UpvoteCurator::with('user')
+            ->from('upvote_curators as t')
+            ->join(DB::raw('(SELECT author, COUNT(*) as author_count FROM upvote_curators GROUP BY author) c'), 't.author', '=', 'c.author')
+            ->where('t.voter', '=', $user->username)
+            ->select('t.id', 't.author', 't.voter', 't.voter_weight', 't.is_enable', 't.voting_type', 'c.author_count')
             ->paginate(10);
 
-        return FollowingResource::collection($followings);
+        return CurationResource::collection($followings);
     }
 
     public function getFollowingDownvote()
@@ -98,27 +106,29 @@ class FollowerController extends Controller
     public function getFollowingUpvoteComment()
     {
         // Get the ID of the authenticated user
-        $userId = auth()->id();
+        $user = auth()->user();
 
-        $followings = User::query()
-            ->whereHasFollower($userId, 'upvote_comment')
-            ->withFollower($userId, 'upvote_comment')
+        $followings = UpvoteComment::with('user')
+            ->from('upvote_comments as t')
+            ->join(DB::raw('(SELECT commenter, COUNT(*) as commenter_count FROM upvote_comments GROUP BY commenter) c'), 't.commenter', '=', 'c.commenter')
+            ->where('t.author', '=', $user->username)
+            ->select('t.id', 't.author', 't.commenter', 't.voter_weight', 't.is_enable', 't.voting_type', 'c.commenter_count')
             ->paginate(10);
 
-        return FollowingUpvoteCommentResource::collection($followings);
+        return CommentResource::collection($followings);
     }
 
     public function getFollowingUpvotePost()
     {
-        // Get the ID of the authenticated user
-        $userId = auth()->id();
-
-        $followings = User::query()
-            ->whereHasFollower($userId, 'upvote_post')
-            ->withFollower($userId, 'upvote_post')
+        $user = auth()->user();
+        $followings = UpvotePost::with('user')
+            ->from('upvote_posts as t')
+            ->join(DB::raw('(SELECT author, COUNT(*) as author_count FROM upvote_posts GROUP BY author) c'), 't.author', '=', 'c.author')
+            ->where('t.voter', '=', $user->username)
+            ->select('t.id', 't.author', 't.voter', 't.voter_weight', 't.is_enable', 't.voting_type', 'c.author_count')
             ->paginate(10);
 
-        return FollowingUpvotePostResource::collection($followings);
+        return PostResource::collection($followings);
     }
 
     public function follow(StoreFollowerRequest $request)
@@ -167,8 +177,23 @@ class FollowerController extends Controller
     public function update(UpdateFollowerRequest $request)
     {
         $request->validated();
+        $trailerType = strtolower($request->trailerType);
 
-        $follower = Follower::find($request->id);
+        if ($trailerType === 'upvote_post') {
+            $follower = UpvotePost::find($request->id);
+        }
+
+        if ($trailerType === 'upvote_comment') {
+            $follower = UpvoteComment::find($request->id);
+        }
+
+        if ($trailerType === 'curation') {
+            $follower = UpvoteCurator::find($request->id);
+        }
+
+        if ($trailerType === 'downvote') {
+            $follower = Downvote::find($request->id);
+        }
 
         if (!$follower) {
             return $this->error(null, 'Follower not found', 404);
@@ -176,8 +201,7 @@ class FollowerController extends Controller
 
         $follower->is_enable = $request->isEnable;
         $follower->voting_type = $request->votingType ? strtolower($request->votingType) : 'fixed';
-        $follower->trailer_type = strtolower($request->trailerType);
-        $follower->weight = $request->weight * 100;
+        $follower->voter_weight = $request->weight * 100;
         $follower->save();
 
         return $this->success($follower, 'User was successfully updated.');

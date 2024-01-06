@@ -88,6 +88,7 @@ class ProcessUpvoteCommentsJob implements ShouldQueue
 
             if ($this->jobs->count()) {
                 $this->processBatchVotingJob($this->jobs->all());
+                $this->jobs = collect();
             }
         } catch (Exception $e) {
             throw new Exception($e->getMessage());

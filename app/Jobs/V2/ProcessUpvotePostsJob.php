@@ -116,7 +116,6 @@ class ProcessUpvotePostsJob implements ShouldQueue
 
                     // Broadcast upvote if user details are not limited
                     if ($checkLimits) {
-
                         $this->jobs->push(new VotingJob([
                             'voter' => $voter,
                             'author' => $author,
@@ -129,6 +128,7 @@ class ProcessUpvotePostsJob implements ShouldQueue
 
                 if ($this->jobs->count()) {
                     $this->processBatchVotingJob($this->jobs->all());
+                    $this->jobs = collect();
                 }
             }
         } catch (Exception $e) {

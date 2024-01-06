@@ -53,6 +53,7 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::put('/follower/update', [FollowerController::class, 'update']);
 
     Route::group(['prefix' => 'v2'], function () {
+        Route::get('upvote/comment', [UpvoteCommentController::class, 'index']);
         Route::post('upvote/comment', [UpvoteCommentController::class, 'store']);
         Route::post('upvote/post', [UpvotePostController::class, 'store']);
     });

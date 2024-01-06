@@ -42,10 +42,6 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
                     $operation['weight'],
                 );
             }
-
-            if ($this->jobs->count()) {
-                $this->processBatchVotingJob($this->jobs->all());
-            }
         } catch (Exception $e) {
             throw new Exception($e->getMessage());
         }
@@ -54,16 +50,6 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
     protected function processVoteBlockOperations($followed, $author, $permlink, $weight)
     {
         try {
-            // $fetchVoteLogs = VoteLog::where('voter', $followed)
-            //     ->where('author', $author)
-            //     ->where('permlink', $permlink)
-            //     ->where('trailer_type', 'upvote_comment')
-            //     ->first();
-
-            // if ($fetchVoteLogs) {
-            //     return null;
-            // }
-
             $getContent = $this->getContent($author, $permlink);
 
             if (!$getContent) {
@@ -88,27 +74,18 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
                     ->where('author', $followed)
                     ->get();
 
+                $activeVotes = collect($getContent['active_votes'])->pluck('voter');
 
                 foreach ($fetchUpvoteCurators as $curator) {
-
-                    $voted = false;
                     $follower = $curator->voter;
-                    foreach ($getContent['active_votes'] as $activeVote) {
-                        if ($activeVote['voter'] === $curator->voter) {
-                            $voted = true;
-                        }
-                    }
-                    Log::info('curator', ['isVoted' => $voted, $curator]);
+                    $hasVoted = $activeVotes->contains($follower);
 
-                    if (!$voted) {
-                        $voterWeight = $curator->voter_weight;
-
-                        if ($curator->voting_type === 'scaled') {
-                            $voterWeight = (int)(($voterWeight / 10000) * $weight);
-                        }
+                    if (!$hasVoted) {
+                        $voterWeight = $curator->voting_type === 'scaled'
+                            ? (int)(($curator->voter_weight / 10000) * $weight)
+                            : $curator->voter_weight;
 
                         $checkLimits = $this->checkLimits($follower, $author, $permlink, $voterWeight);
-                        Log::info('curator $checkLimits', ['$checkLimits' => $checkLimits]);
 
                         if ($checkLimits) {
                             $this->jobs->push(new VotingJob([
@@ -120,10 +97,18 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
                             ]));
                         }
                     }
+
+                    // Log::info('ProcessUpvoteCuratorsJob ' . $follower, [
+                    //     'hasVoted' => $hasVoted,
+                    //     'checkLimits' => $checkLimits ?? false,
+                    //     'curator' => $curator
+                    // ]);
                 }
 
+                // Log::info('ProcessUpvoteCuratorsJob count: ' . $this->jobs->count(), [$this->jobs->all()]);
                 if ($this->jobs->count()) {
                     $this->processBatchVotingJob($this->jobs->all());
+                    $this->jobs = collect();
                 }
             }
         } catch (Exception $e) {

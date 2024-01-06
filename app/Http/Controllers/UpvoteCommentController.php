@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\UpvoteComment;
 use App\Http\Requests\StoreUpvoteCommentRequest;
 use App\Http\Requests\UpdateUpvoteCommentRequest;
+use App\Http\Resources\CommentResource;
 use App\Traits\HttpResponses;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class UpvoteCommentController extends Controller
 {
@@ -17,7 +19,16 @@ class UpvoteCommentController extends Controller
      */
     public function index()
     {
-        //
+        $user = auth()->user();
+        $data = UpvoteComment::with('user')
+            ->from('upvote_comments as t')
+            ->join(DB::raw('(SELECT commenter, COUNT(*) as commenter_count FROM upvote_comments GROUP BY commenter) c'), 't.commenter', '=', 'c.commenter')
+            ->where('t.author', '=', $user->username)
+            ->select('t.id', 't.author', 't.commenter', 't.voter_weight', 't.is_enable', 't.voting_type', 'c.commenter_count')
+            ->paginate(10);
+        return $data;
+
+        return CommentResource::collection($data);
     }
 
     /**
