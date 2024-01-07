@@ -42,6 +42,7 @@ class StreamBlock extends Command
         $maxRetries = 10;
 
         $streamBlockOperations = $this->retryFetchingBlockOperations($lastBlock, $retryCount, $maxRetries);
+        // Log::info('streamBlockOperations', [$streamBlockOperations]);
 
         if ($streamBlockOperations) {
             $operations = $this->pluckOperations($streamBlockOperations, $lastBlock);
@@ -82,9 +83,9 @@ class StreamBlock extends Command
 
             $retryCount += 1;
 
-            if (count($streamBlockOperations['ops'] ?? []) === 0) {
-                usleep(500000); // 1,000,000 microsecond = 1 second, 500,000microsecond = 0.5 second
-            }
+            // if (count($streamBlockOperations['ops'] ?? []) === 0) {
+            //     usleep(500000); // 1,000,000 microsecond = 1 second, 500,000microsecond = 0.5 second
+            // }
         }
 
         return $streamBlockOperations['ops'] ?? [];

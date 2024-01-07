@@ -3,6 +3,7 @@
 namespace App\Jobs\V1;
 
 use App\Traits\DiscordTrait;
+use App\Traits\HelperTrait;
 use Carbon\Carbon;
 use Hive\Helpers\PrivateKey;
 use Hive\Hive;
@@ -17,7 +18,7 @@ use Illuminate\Support\Facades\Log;
 
 class ProcessClaimRewardsJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels, DiscordTrait;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels, DiscordTrait, HelperTrait;
 
     protected $followers;
     public $tries = 3;
@@ -53,7 +54,13 @@ class ProcessClaimRewardsJob implements ShouldQueue
 
     protected function broadcastClaimReward($follower, $postingPrivateKey)
     {
-        $hive = new Hive();
+        $hive = new Hive([
+            'rpcNodes' => [
+                'https://rpc.d.buzz/',
+            ],
+            'timeout' => 300
+        ]);
+
         $username = $follower->username;
         $userId = $follower->id;
         $discordWebhookUrl = $follower->discord_webhook_url;
@@ -61,12 +68,13 @@ class ProcessClaimRewardsJob implements ShouldQueue
         $hasRewards = true;
 
         // if ($this->canMakeRequest('claim.condenser_api.get_accounts')) {
-        $account = $this->makeHttpRequest([
-            'jsonrpc' => '2.0',
-            'method' => 'condenser_api.get_accounts',
-            'params' => [[$username]],
-            'id' => 1,
-        ])[0];
+        $account = $this->getAccounts($username)->first();
+        // $account = $this->makeHttpRequest([
+        //     'jsonrpc' => '2.0',
+        //     'method' => 'condenser_api.get_accounts',
+        //     'params' => [[$username]],
+        //     'id' => 1,
+        // ])[0];
 
         // Process the response
         if (!empty($account)) {
@@ -115,11 +123,5 @@ class ProcessClaimRewardsJob implements ShouldQueue
     protected function canMakeRequest($name)
     {
         return !Cache::has('last_api_request_time.' . $name);
-    }
-
-    protected function makeHttpRequest($data)
-    {
-        // Replace with your actual HTTP request logic
-        return Http::post('https://rpc.d.buzz/', $data)->json()['result'] ?? [];
     }
 }
