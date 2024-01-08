@@ -15,7 +15,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
-class ProcessUpvoteCuratorsJob implements ShouldQueue
+class ProcessDownvotesJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels, HelperTrait;
 
@@ -103,11 +103,11 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
                         }
                     }
 
-                    Log::info('ProcessUpvoteCuratorsJob ' . $follower, [
-                        'hasVoted' => $hasVoted,
-                        'checkLimits' => $checkLimits,
-                        'curator' => $curator
-                    ]);
+                    // Log::info('ProcessUpvoteCuratorsJob ' . $follower, [
+                    //     'hasVoted' => $hasVoted,
+                    //     'checkLimits' => $checkLimits ?? false,
+                    //     'curator' => $curator
+                    // ]);
                 }
 
                 // Log::info('ProcessUpvoteCuratorsJob count: ' . $this->jobs->count(), [$this->jobs->all()]);
