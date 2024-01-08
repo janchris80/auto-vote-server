@@ -216,7 +216,9 @@ class FollowerController extends Controller
         $request->validated();
         $follower = Follower::where("user_id", "=", $request->userId)
             ->where("follower_id", auth()->id())
-            ->where("trailer_type", "=", $request->trailerType);
+            ->with(['user', 'follower'])
+            ->where("trailer_type", "=", $request->trailerType)
+            ->first();
 
         $user = auth()->user();
 
@@ -247,6 +249,8 @@ class FollowerController extends Controller
                 ->where('author', $follower->user->username)
                 ->delete();
         }
+
+        $follower->delete();
 
         return $this->success($follower, 'Successfully Unfollow.');
     }
