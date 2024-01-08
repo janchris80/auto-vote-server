@@ -2,23 +2,25 @@
 
 namespace App\Http\Resources;
 
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class PostResource extends JsonResource
+class DownvoteResource extends JsonResource
 {
     /**
      * Transform the resource into an array.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @return array|\Illuminate\Contracts\Support\Arrayable|\JsonSerializable
+     * @return array<string, mixed>
      */
-    public function toArray($request)
+    public function toArray(Request $request): array
     {
         return [
             "id" => $this->id,
             "username" => $this->author,
             "userId" => $this->followedUser->id,
+            "followersCount" => $this->commenter_count,
             'weight' => $this->voter_weight,
+            'votingType' => $this->voting_type,
             'isEnable' => $this->is_enable,
         ];
     }

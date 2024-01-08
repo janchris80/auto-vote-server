@@ -8,6 +8,7 @@ use App\Http\Requests\UnfollowFollowerRequest;
 use App\Http\Requests\UpdateFollowerRequest;
 use App\Http\Resources\CommentResource;
 use App\Http\Resources\CurationResource;
+use App\Http\Resources\DownvoteResource;
 use App\Http\Resources\FollowingResource;
 use App\Http\Resources\FollowingUpvoteCommentResource;
 use App\Http\Resources\FollowingUpvotePostResource;
@@ -80,7 +81,7 @@ class FollowerController extends Controller
     public function getFollowingCuration()
     {
         $user = auth()->user();
-        $followings = UpvoteCurator::with('user')
+        $followings = UpvoteCurator::with('followedUser')
             ->from('upvote_curators as t')
             ->join(DB::raw('(SELECT author, COUNT(*) as author_count FROM upvote_curators GROUP BY author) c'), 't.author', '=', 'c.author')
             ->where('t.voter', '=', $user->username)
@@ -93,14 +94,15 @@ class FollowerController extends Controller
     public function getFollowingDownvote()
     {
         // Get the ID of the authenticated user
-        $userId = auth()->id();
-
-        $followings = User::query()
-            ->whereHasFollower($userId, 'downvote')
-            ->withFollower($userId, 'downvote')
+        $user = auth()->user();
+        $followings = Downvote::with('followedUser')
+            ->from('downvotes as t')
+            ->join(DB::raw('(SELECT author, COUNT(*) as author_count FROM downvotes GROUP BY author) c'), 't.author', '=', 'c.author')
+            ->where('t.voter', '=', $user->username)
+            ->select('t.id', 't.author', 't.voter', 't.voter_weight', 't.is_enable', 't.voting_type', 'c.author_count')
             ->paginate(10);
 
-        return FollowingResource::collection($followings);
+        return DownvoteResource::collection($followings);
     }
 
     public function getFollowingUpvoteComment()
@@ -108,7 +110,7 @@ class FollowerController extends Controller
         // Get the ID of the authenticated user
         $user = auth()->user();
 
-        $followings = UpvoteComment::with('user')
+        $followings = UpvoteComment::with('followedUser')
             ->from('upvote_comments as t')
             ->join(DB::raw('(SELECT commenter, COUNT(*) as commenter_count FROM upvote_comments GROUP BY commenter) c'), 't.commenter', '=', 'c.commenter')
             ->where('t.author', '=', $user->username)
@@ -121,7 +123,7 @@ class FollowerController extends Controller
     public function getFollowingUpvotePost()
     {
         $user = auth()->user();
-        $followings = UpvotePost::with('user')
+        $followings = UpvotePost::with('followedUser')
             ->from('upvote_posts as t')
             ->join(DB::raw('(SELECT author, COUNT(*) as author_count FROM upvote_posts GROUP BY author) c'), 't.author', '=', 'c.author')
             ->where('t.voter', '=', $user->username)
