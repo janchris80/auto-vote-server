@@ -158,6 +158,54 @@ class FollowerController extends Controller
                 "enable" => true,
                 "weight" => $request->weight ?? 10000, // to get the percent need to 10000 / 100 = 100%
             ]);
+
+            if ($request->trailerType === 'upvote_comment') {
+                UpvoteComment::updateOrCreate([
+                    'commenter' => $follower->user->username,
+                    'author' => $follower->follower->username,
+                ], [
+                    'voter_weight' => $follower->weight,
+                    'is_enable' => $follower->is_enable,
+                    'voting_type' => $follower->voting_type,
+                    'last_voted_at' => $follower->last_voted_at,
+                ]);
+            }
+
+            if ($request->trailerType === 'upvote_post') {
+                UpvotePost::updateOrCreate([
+                    'author' => $follower->user->username,
+                    'voter' => $follower->follower->username,
+                ], [
+                    'voter_weight' => $follower->weight,
+                    'is_enable' => $follower->is_enable,
+                    'voting_type' => $follower->voting_type,
+                    'last_voted_at' => $follower->last_voted_at,
+                ]);
+            }
+
+            if ($request->trailerType === 'curation') {
+                UpvoteCurator::updateOrCreate([
+                    'author' => $follower->user->username,
+                    'voter' => $follower->follower->username,
+                ], [
+                    'voter_weight' => $follower->weight,
+                    'is_enable' => $follower->is_enable,
+                    'voting_type' => $follower->voting_type,
+                    'last_voted_at' => $follower->last_voted_at,
+                ]);
+            }
+
+            if ($request->trailerType === 'downvote') {
+                Downvote::updateOrCreate([
+                    'author' => $follower->user->username,
+                    'voter' => $follower->follower->username,
+                ], [
+                    'voter_weight' => $follower->weight,
+                    'is_enable' => $follower->is_enable,
+                    'voting_type' => $follower->voting_type,
+                    'last_voted_at' => $follower->last_voted_at,
+                ]);
+            }
         }
 
         return $this->success($follower, 'Successfully Followed.');
@@ -166,12 +214,41 @@ class FollowerController extends Controller
     public function unfollow(UnfollowFollowerRequest $request)
     {
         $request->validated();
-        $model = Follower::where("user_id", "=", $request->userId)
+        $follower = Follower::where("user_id", "=", $request->userId)
             ->where("follower_id", auth()->id())
-            ->where("trailer_type", "=", $request->trailerType)
-            ->delete();
+            ->where("trailer_type", "=", $request->trailerType);
 
-        return $this->success($model, 'Successfully Unfollow.');
+        $user = auth()->user();
+
+        if ($request->trailerType === 'upvote_comment') {
+            UpvoteComment::query()
+                ->where('author', $user->username)
+                ->where('commenter', $follower->user->username)
+                ->delete();
+        }
+
+        if ($request->trailerType === 'upvote_post') {
+            UpvotePost::query()
+                ->where('voter', $user->username)
+                ->where('author', $follower->user->username)
+                ->delete();
+        }
+
+        if ($request->trailerType === 'curation') {
+            UpvoteCurator::query()
+                ->where('voter', $user->username)
+                ->where('author', $follower->user->username)
+                ->delete();
+        }
+
+        if ($request->trailerType === 'downvote') {
+            Downvote::query()
+                ->where('voter', $user->username)
+                ->where('author', $follower->user->username)
+                ->delete();
+        }
+
+        return $this->success($follower, 'Successfully Unfollow.');
     }
 
     public function update(UpdateFollowerRequest $request)
