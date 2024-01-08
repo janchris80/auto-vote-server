@@ -382,12 +382,14 @@ trait HelperTrait
                 ->where('username', $voter)
                 ->value('limit_upvote_mana');
 
+
             if (!$powerlimit) {
                 return false;
             }
 
             // Fetch user details from the blockchain (adjust the following code based on your actual implementation)
             $account = $this->getAccounts($voter)->first();
+
 
             // On any error, account will be null
             if (!$account) {
@@ -397,6 +399,7 @@ trait HelperTrait
             $getDynamicglobalProperties = $this->getDynamicGlobalProperties();
             $tvfs = (int)str_replace('HIVE', '', $getDynamicglobalProperties['total_vesting_fund_hive']);
             $tvs = (int)str_replace('VESTS', '', $getDynamicglobalProperties['total_vesting_shares']);
+            // dump($getDynamicglobalProperties, $tvfs, $tvs);
 
             // Extract necessary information from the user details
             if ($tvfs && $tvs) {
@@ -412,10 +415,10 @@ trait HelperTrait
                 // Calculating Mana to check against limitation
                 $withdrawRate = 0;
 
-                if ($account['vesting_withdraw_rate'] > 0) {
+                if ((int)str_replace('VESTS', '', $account['vesting_withdraw_rate']) > 0) {
                     $withdrawRate = min(
-                        $account['vesting_withdraw_rate'],
-                        ($account['to_withdraw'] - $account['withdrawn']) / 1000000
+                        (int)str_replace('VESTS', '', $account['vesting_withdraw_rate']),
+                        (int)(($account['to_withdraw'] - $account['withdrawn']) / 1000000)
                     );
                 }
 
@@ -428,6 +431,8 @@ trait HelperTrait
                 $delta = Carbon::now()->timestamp - $account['voting_manabar']['last_update_time'];
                 $currentMana = $account['voting_manabar']['current_mana'] + ($delta * $maxMana / 432000);
                 $percentage = round($currentMana / $maxMana * 10000);
+
+                dump($percentage);
 
                 if (!is_finite($percentage)) {
                     $percentage = 0;
