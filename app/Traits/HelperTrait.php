@@ -412,10 +412,10 @@ trait HelperTrait
                 // Calculating Mana to check against limitation
                 $withdrawRate = 0;
 
-                if ($account['vesting_withdraw_rate'] > 0) {
+                if ((int)str_replace('VESTS', '', $account['vesting_withdraw_rate']) > 0) {
                     $withdrawRate = min(
-                        $account['vesting_withdraw_rate'],
-                        ($account['to_withdraw'] - $account['withdrawn']) / 1000000
+                        (int)str_replace('VESTS', '', $account['vesting_withdraw_rate']),
+                        (int)(($account['to_withdraw'] - $account['withdrawn']) / 1000000)
                     );
                 }
 
