@@ -167,7 +167,7 @@ class FollowerController extends Controller
                     'voter_weight' => $follower->weight,
                     'is_enable' => $follower->is_enable,
                     'voting_type' => $follower->voting_type,
-                    'last_voted_at' => $follower->last_voted_at,
+                    'last_voted_at' => $follower->last_voted_at ?? now(),
                 ]);
             }
 
@@ -179,7 +179,7 @@ class FollowerController extends Controller
                     'voter_weight' => $follower->weight,
                     'is_enable' => $follower->is_enable,
                     'voting_type' => $follower->voting_type,
-                    'last_voted_at' => $follower->last_voted_at,
+                    'last_voted_at' => $follower->last_voted_at ?? now(),
                 ]);
             }
 
@@ -191,7 +191,7 @@ class FollowerController extends Controller
                     'voter_weight' => $follower->weight,
                     'is_enable' => $follower->is_enable,
                     'voting_type' => $follower->voting_type,
-                    'last_voted_at' => $follower->last_voted_at,
+                    'last_voted_at' => $follower->last_voted_at ?? now(),
                 ]);
             }
 
@@ -203,7 +203,7 @@ class FollowerController extends Controller
                     'voter_weight' => $follower->weight,
                     'is_enable' => $follower->is_enable,
                     'voting_type' => $follower->voting_type,
-                    'last_voted_at' => $follower->last_voted_at,
+                    'last_voted_at' => $follower->last_voted_at ?? now(),
                 ]);
             }
         }
