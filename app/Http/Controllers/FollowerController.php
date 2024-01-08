@@ -216,41 +216,39 @@ class FollowerController extends Controller
         $request->validated();
         $follower = Follower::where("user_id", "=", $request->userId)
             ->where("follower_id", auth()->id())
-            ->with(['user', 'follower'])
             ->where("trailer_type", "=", $request->trailerType)
-            ->first();
+            ->delete();
 
+        $followedUser = User::find($request->userId);
         $user = auth()->user();
 
         if ($request->trailerType === 'upvote_comment') {
             UpvoteComment::query()
                 ->where('author', $user->username)
-                ->where('commenter', $follower->user->username)
+                ->where('commenter', $followedUser->username)
                 ->delete();
         }
 
         if ($request->trailerType === 'upvote_post') {
             UpvotePost::query()
                 ->where('voter', $user->username)
-                ->where('author', $follower->user->username)
+                ->where('author', $followedUser->username)
                 ->delete();
         }
 
         if ($request->trailerType === 'curation') {
             UpvoteCurator::query()
                 ->where('voter', $user->username)
-                ->where('author', $follower->user->username)
+                ->where('author', $followedUser->username)
                 ->delete();
         }
 
         if ($request->trailerType === 'downvote') {
             Downvote::query()
                 ->where('voter', $user->username)
-                ->where('author', $follower->user->username)
+                ->where('author', $followedUser->username)
                 ->delete();
         }
-
-        $follower->delete();
 
         return $this->success($follower, 'Successfully Unfollow.');
     }
