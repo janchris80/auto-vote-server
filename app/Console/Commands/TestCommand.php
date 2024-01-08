@@ -23,6 +23,8 @@ class TestCommand extends Command
 
     public function handle()
     {
+        $lastBlock = $this->getLastBlock();
 
+        dump($lastBlock);
     }
 }

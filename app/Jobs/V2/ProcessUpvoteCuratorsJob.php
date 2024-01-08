@@ -102,15 +102,8 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
                             }
                         }
                     }
-
-                    Log::info('ProcessUpvoteCuratorsJob ' . $follower, [
-                        'hasVoted' => $hasVoted,
-                        'checkLimits' => $checkLimits,
-                        'curator' => $curator
-                    ]);
                 }
-
-                // Log::info('ProcessUpvoteCuratorsJob count: ' . $this->jobs->count(), [$this->jobs->all()]);
+                
                 if ($this->jobs->count()) {
                     $this->processBatchVotingJob($this->jobs->all());
                     $this->jobs = collect();

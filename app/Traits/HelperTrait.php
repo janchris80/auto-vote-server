@@ -390,7 +390,6 @@ trait HelperTrait
             // Fetch user details from the blockchain (adjust the following code based on your actual implementation)
             $account = $this->getAccounts($voter)->first();
 
-
             // On any error, account will be null
             if (!$account) {
                 return false;
@@ -431,8 +430,6 @@ trait HelperTrait
                 $delta = Carbon::now()->timestamp - $account['voting_manabar']['last_update_time'];
                 $currentMana = $account['voting_manabar']['current_mana'] + ($delta * $maxMana / 432000);
                 $percentage = round($currentMana / $maxMana * 10000);
-
-                dump($percentage);
 
                 if (!is_finite($percentage)) {
                     $percentage = 0;
