@@ -165,7 +165,7 @@ class FollowerController extends Controller
                     'author' => $follower->follower->username,
                 ], [
                     'voter_weight' => $follower->weight,
-                    'is_enable' => $follower->enable,
+                    'is_enable' => $follower->is_enable,
                     'voting_type' => $follower->voting_type,
                     'last_voted_at' => $follower->last_voted_at,
                 ]);
