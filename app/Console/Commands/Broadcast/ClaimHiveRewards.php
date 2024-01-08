@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands\Broadcast;
 
-use App\Jobs\ProcessClaimRewardsJob;
+use App\Jobs\V1\ProcessClaimRewardsJob;
 use App\Models\User;
 use Illuminate\Console\Command;
 

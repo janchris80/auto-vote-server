@@ -16,7 +16,7 @@ return new class extends Migration
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('username')->unique();
-            $table->integer('limit_upvote_mana')->default(10000);
+            $table->integer('limit_upvote_mana')->default(8000);
             $table->integer('limit_downvote_mana')->default(10000);
             $table->boolean('is_auto_claim_reward')->default(false);
             $table->boolean('is_enable')->default(false);

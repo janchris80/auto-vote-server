@@ -20,7 +20,6 @@ class AuthController extends Controller
         $request->validated();
 
         $user = User::where('username', $request->username)
-            ->with('trailers')
             ->first();
 
         if (!$user) {

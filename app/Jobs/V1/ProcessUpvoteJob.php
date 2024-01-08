@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Jobs;
+namespace App\Jobs\V1;
 
 use App\Models\Follower;
 use Illuminate\Bus\Batchable;
@@ -30,9 +30,7 @@ class ProcessUpvoteJob implements ShouldQueue
 
     public function handle(): void
     {
-        $hive = new Hive();
-        $postingKey = config('hive.private_key.posting'); // Be cautious with private keys
-        $postingPrivateKey = new PrivateKey($postingKey);
+        $hive = $this->hive();
         $vote = (object)$this->votes->all();
 
         try {
@@ -45,7 +43,7 @@ class ProcessUpvoteJob implements ShouldQueue
                 $manaLeft = $this->getCurrentMana();
 
                 if ($hasEnoughMana) {
-                    $this->broadcastVote($vote, $postingPrivateKey, $hive, $manaLeft, $rcLeft);
+                    $this->broadcastVote($vote, $hive, $manaLeft, $rcLeft);
                 }
             }
 
@@ -55,10 +53,10 @@ class ProcessUpvoteJob implements ShouldQueue
         }
     }
 
-    protected function broadcastVote($vote, $postingPrivateKey, $hive, $manaLeft, $rcLeft)
+    protected function broadcastVote($vote, $hive, $manaLeft, $rcLeft)
     {
         $weight = $vote->votingType === 'downvote' ? intval(-$vote->weight) : intval($vote->weight);
-        $result = $hive->broadcast($postingPrivateKey, 'vote', [
+        $result = $hive->broadcast($this->privateKey(), 'vote', [
             $vote->voter,      // voter
             $vote->author,     // author
             $vote->permlink,   // permlink

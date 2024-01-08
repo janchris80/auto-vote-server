@@ -5,6 +5,8 @@ use App\Http\Controllers\FollowerController;
 use App\Http\Controllers\HiveController;
 use App\Http\Controllers\StatusController;
 use App\Http\Controllers\TrailerController;
+use App\Http\Controllers\UpvoteCommentController;
+use App\Http\Controllers\UpvotePostController;
 use App\Http\Controllers\VoteLogController;
 use Illuminate\Support\Facades\Route;
 
@@ -49,4 +51,10 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::put('/trailers', [TrailerController::class, 'update']);
 
     Route::put('/follower/update', [FollowerController::class, 'update']);
+
+    Route::group(['prefix' => 'v2'], function () {
+        Route::get('upvote/comment', [UpvoteCommentController::class, 'index']);
+        Route::post('upvote/comment', [UpvoteCommentController::class, 'store']);
+        Route::post('upvote/post', [UpvotePostController::class, 'store']);
+    });
 });

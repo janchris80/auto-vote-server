@@ -2,10 +2,8 @@
 
 namespace App\Console\Commands\Broadcast;
 
-use App\Jobs\ProcessUpvoteJob;
-use App\Jobs\ProcessVotesJob;
+use App\Jobs\V1\ProcessVotesJob;
 use App\Models\Follower;
-use App\Models\Vote;
 use Illuminate\Console\Command;
 
 class Voting extends Command

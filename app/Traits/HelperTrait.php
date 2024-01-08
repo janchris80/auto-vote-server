@@ -2,8 +2,17 @@
 
 namespace App\Traits;
 
-use App\Jobs\ProcessUpvoteJob;
+use App\Jobs\V1\ProcessUpvoteJob;
+use App\Models\Downvote;
+use App\Models\UpvoteComment;
+use App\Models\UpvoteCurator;
+use App\Models\UpvotePost;
+use App\Models\User;
+use Carbon\Carbon;
+use Exception;
+use Hive\Hive;
 use Illuminate\Bus\Batch;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
@@ -17,7 +26,29 @@ trait HelperTrait
     public $resourceCredit = 0;
     public $currentMana = 0;
     public $fiveDaysInSeconds = 432000; // seconds
+    public $fiveMinutesInSecond = 300; // seconds
     public $downvoteManaRatio  = 0.25;
+    public $maxIndex = 500;
+
+    public function hive()
+    {
+        $hive = new Hive([
+            'rpcNodes' => [
+                'https://rpc.d.buzz/',
+            ],
+            'timeout' => 300
+        ]);
+
+        return $hive;
+    }
+
+    public function privateKey()
+    {
+        $postingKey = config('hive.private_key.posting'); // Be cautious with private keys
+        $postingPrivateKey = $this->hive()->privateKeyFrom($postingKey);
+
+        return $postingPrivateKey;
+    }
 
     public function canMakeRequest($name)
     {
@@ -41,10 +72,23 @@ trait HelperTrait
                 'id' => 1,
             ]);
 
+            // $guzzleResponse = $response->toPsrResponse();
+            // $responseSize = $guzzleResponse->getBody()->getSize();
+            // $responseSizeKB = number_format($responseSize / 1024, 2);
+
+            // Retrieve the current total size from the cache
+            // $totalSize = Cache::get('data_size', 0);
+
+            // Add the current response size to the total
+            // $totalSize += $responseSizeKB;
+
+            // Save the updated total size to the cache
+            // Cache::forever('data_size', $totalSize);
+
             // Decode and return the JSON response
             return $response->json()['result'] ?? [];
         } catch (\Exception $e) {
-            Log::error('Error in getApiData ' . $method . ': ' . $e->getMessage(), ['trace' => $e->getTrace()]);
+            Log::error('Error in getApiData ' . $method . ': ' . $e->getMessage());
             return [];
         }
     }
@@ -76,7 +120,7 @@ trait HelperTrait
     public function getAccounts(string | array $username, bool $delayedVotesActive = false): Collection
     {
         // Check if user is 'string' or ['string', 'string2']
-        $usernames = is_array($username) ? $username : [$username];
+        $usernames = Arr::wrap($username);
 
         $response = $this->getApiData('condenser_api.get_accounts', [$usernames, $delayedVotesActive]);
 
@@ -118,6 +162,13 @@ trait HelperTrait
     public function getContentReplies($username, $permlink): Collection
     {
         $response = $this->getApiData('condenser_api.get_content_replies', [$username, $permlink]);
+
+        return collect($response);
+    }
+
+    public function getContent($author, $permlink): Collection
+    {
+        $response = $this->getApiData('condenser_api.get_content', [$author, $permlink]);
 
         return collect($response);
     }
@@ -303,6 +354,201 @@ trait HelperTrait
             ->allowFailures()
             ->onQueue('voting')
             ->name('voting')
+            ->onConnection('redis')
             ->dispatch();
+    }
+
+    public function getDynamicGlobalProperties()
+    {
+        return Cache::remember('get_dynamic_global_properties', $this->fiveMinutesInSecond, function () {
+            return $this->getApiData('condenser_api.get_dynamic_global_properties', []);
+        });
+    }
+
+    public function getLastBlock()
+    {
+        return Cache::rememberForever('last_block', function () {
+            return 0; // Default value if not found in cache
+        });
+    }
+
+    public function checkLimits($voter, $author, $permlink, $weight)
+    {
+        try {
+            // Fetch user's power limit from the database
+            $powerlimit = User::select('limit_upvote_mana')
+                ->where('is_enable', 1)
+                ->where('is_pause', 0)
+                ->where('username', $voter)
+                ->value('limit_upvote_mana');
+
+            if (!$powerlimit) {
+                return false;
+            }
+
+            // Fetch user details from the blockchain (adjust the following code based on your actual implementation)
+            $account = $this->getAccounts($voter)->first();
+
+            // On any error, account will be null
+            if (!$account) {
+                return false;
+            }
+
+            $getDynamicglobalProperties = $this->getDynamicGlobalProperties();
+            $tvfs = (int)str_replace('HIVE', '', $getDynamicglobalProperties['total_vesting_fund_hive']);
+            $tvs = (int)str_replace('VESTS', '', $getDynamicglobalProperties['total_vesting_shares']);
+
+            // Extract necessary information from the user details
+            if ($tvfs && $tvs) {
+
+                // Calculating total SP to check against limitation
+                $delegated = (int) str_replace('VESTS', '', $account['delegated_vesting_shares']);
+                $received = (int) str_replace('VESTS', '', $account['received_vesting_shares']);
+                $vesting = (int) str_replace('VESTS', '', $account['vesting_shares']);
+                $totalvest = $vesting + $received - $delegated;
+                $sp = $totalvest * ($tvfs / $tvs);
+                $sp = round($sp, 2);
+
+                // Calculating Mana to check against limitation
+                $withdrawRate = 0;
+
+                if ($account['vesting_withdraw_rate'] > 0) {
+                    $withdrawRate = min(
+                        $account['vesting_withdraw_rate'],
+                        ($account['to_withdraw'] - $account['withdrawn']) / 1000000
+                    );
+                }
+
+                $maxMana = ($totalvest - $withdrawRate) * pow(10, 6);
+
+                if ($maxMana === 0) {
+                    return false;
+                }
+
+                $delta = Carbon::now()->timestamp - $account['voting_manabar']['last_update_time'];
+                $currentMana = $account['voting_manabar']['current_mana'] + ($delta * $maxMana / 432000);
+                $percentage = round($currentMana / $maxMana * 10000);
+
+                if (!is_finite($percentage)) {
+                    $percentage = 0;
+                }
+
+                if ($percentage > 10000) {
+                    $percentage = 10000;
+                } elseif ($percentage < 0) {
+                    $percentage = 0;
+                }
+
+                $powernow = round($percentage, 2);
+
+                if ($powernow > $powerlimit) {
+                    if (($powernow / 100) * ($weight / 10000) * $sp > 3) {
+                        // Don't broadcast upvote if sp*weight*power < 3
+                        return true;
+                    }
+
+                    return false;
+                }
+
+                return false;
+            }
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
+    public function fetchUpvotePostAuthors(): array
+    {
+        return Cache::remember('upvote_post_authors', $this->fiveMinutesInSecond, function () {
+            return UpvotePost::query()
+                ->whereHas('user', function ($query) {
+                    $query->where('is_enable', true);
+                })
+                ->where('is_enable', true)
+                ->distinct()
+                ->pluck('author')
+                ->toArray();
+        });
+    }
+
+    public function fetchUpvotePosts($author)
+    {
+        return UpvotePost::query()
+            ->select(
+                'author',
+                'voter',
+                'voter_weight',
+                'is_enable',
+                'voting_type',
+                'last_voted_at'
+            )
+            ->whereHas('user', function ($query) {
+                $query->where('is_enable', true);
+            })
+            ->where('is_enable', true)
+            ->where('author', $author)
+            ->get();
+    }
+
+    protected function fetchUpvoteCommentAuthors(): array
+    {
+        return Cache::remember('upvote_comment_authors', $this->fiveMinutesInSecond, function () {
+            return UpvoteComment::query()
+                ->whereHas('user', function ($query) {
+                    $query->where('is_enable', true);
+                })
+                ->where('is_enable', true)
+                ->distinct()
+                ->pluck('author')
+                ->toArray();
+        });
+    }
+
+    protected function fetchUpvoteComments()
+    {
+        return Cache::remember('upvote_comment', $this->fiveMinutesInSecond, function () {
+            return UpvoteComment::query()
+                ->select(
+                    'author',
+                    'commenter',
+                    'voter_weight',
+                    'is_enable',
+                    'voting_type',
+                    'last_voted_at'
+                )
+                ->where('is_enable', true)
+                ->whereHas('user', function ($query) {
+                    $query->where('is_enable', true);
+                })
+                ->get();
+        });
+    }
+
+    protected function fetchUpvoteCurationFollowedAuthors(): array
+    {
+        return Cache::remember('upvote_curator_authors', $this->fiveMinutesInSecond, function () {
+            return UpvoteCurator::query()
+                ->whereHas('user', function ($query) {
+                    $query->where('is_enable', true);
+                })
+                ->where('is_enable', true)
+                ->distinct()
+                ->pluck('author')
+                ->toArray();
+        });
+    }
+
+    protected function fetchDownvoteFollowedAuthors(): array
+    {
+        return Cache::remember('upvote_downvote_authors', $this->fiveMinutesInSecond, function () {
+            return Downvote::select('author')
+                ->whereHas('user', function ($query) {
+                    $query->where('is_enable', true);
+                })
+                ->where('is_enable', true)
+                ->distinct()
+                ->pluck('author')
+                ->toArray();
+        });
     }
 }

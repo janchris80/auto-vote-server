@@ -20,3 +20,8 @@ yarn-error.log
 .vapor/
 .env.production
 .env.staging
+worker-claim-rewards.log
+worker-default.log
+worker-notification.log
+worker-processing.log
+worker-voting.log
