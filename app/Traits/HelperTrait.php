@@ -30,6 +30,26 @@ trait HelperTrait
     public $downvoteManaRatio  = 0.25;
     public $maxIndex = 500;
 
+    public function hive()
+    {
+        $hive = new Hive([
+            'rpcNodes' => [
+                'https://rpc.d.buzz/',
+            ],
+            'timeout' => 300
+        ]);
+
+        return $hive;
+    }
+
+    public function privateKey()
+    {
+        $postingKey = config('hive.private_key.posting'); // Be cautious with private keys
+        $postingPrivateKey = $this->hive()->privateKeyFrom($postingKey);
+
+        return $postingPrivateKey;
+    }
+
     public function canMakeRequest($name)
     {
         return !Cache::has('last_api_request_time.' . $name);

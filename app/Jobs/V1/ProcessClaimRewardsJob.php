@@ -34,15 +34,12 @@ class ProcessClaimRewardsJob implements ShouldQueue
      */
     public function handle(): void
     {
-        $postingKey = config('hive.private_key.posting'); // Be cautious with private keys
-        $postingPrivateKey = new PrivateKey($postingKey);
-
         $startTime = microtime(true); // Start timer
         //Log::info("Starting ProcessClaimRewardsJob for followers chunk: " . count($this->followers));
         // broadcastClaimReward logic here
         foreach ($this->followers as $follower) {
             try {
-                $this->broadcastClaimReward($follower, $postingPrivateKey);
+                $this->broadcastClaimReward($follower);
             } catch (\Exception $e) {
                 Log::warning('Error claiming rewards: ' . $e->getMessage());
             }
@@ -52,14 +49,9 @@ class ProcessClaimRewardsJob implements ShouldQueue
         //Log::info("Total time taken: {" . microtime(true) - $startTime . "} seconds\n");
     }
 
-    protected function broadcastClaimReward($follower, $postingPrivateKey)
+    protected function broadcastClaimReward($follower)
     {
-        $hive = new Hive([
-            'rpcNodes' => [
-                'https://rpc.d.buzz/',
-            ],
-            'timeout' => 300
-        ]);
+        $hive = $this->hive();
 
         $username = $follower->username;
         $userId = $follower->id;
@@ -94,7 +86,7 @@ class ProcessClaimRewardsJob implements ShouldQueue
                 ];
 
                 $hive->broadcast(
-                    $postingPrivateKey,
+                    $this->privateKey(),
                     'claim_reward_balance',
                     array_values($opParams)
                 );

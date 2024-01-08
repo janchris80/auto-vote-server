@@ -24,20 +24,5 @@ class TestCommand extends Command
     public function handle()
     {
 
-        // $test  = UpvotePost::query()
-        //     ->whereHas('user', function ($query) {
-        //         $query->where('is_enable', true);
-        //     })
-        //     ->where('is_enable', true)
-        //     ->distinct()
-        //     ->pluck('author');
-
-
-
-        // dd($test->toArray());
-        $lastBlock = $this->getLastBlock();
-        
-
-        dd($lastBlock);
     }
 }

@@ -27,32 +27,22 @@ class VotingJob implements ShouldQueue
 
     public function handle(): void
     {
-        $hive = new Hive([
-            'rpcNodes' => [
-                'https://rpc.d.buzz/',
-            ],
-            'timeout' => 300
-        ]);
-
-        $postingKey = config('hive.private_key.posting'); // Be cautious with private keys
-        $postingPrivateKey = $hive->privateKeyFrom($postingKey);
+        $hive = $this->hive();
         $vote = $this->vote;
 
-        $result = $hive->broadcast($postingPrivateKey, 'vote', [
+        $result = $hive->broadcast($this->privateKey(), 'vote', [
             $vote['voter'],      // voter
             $vote['author'],     // author
             $vote['permlink'],   // permlink
             $vote['weight'],     // weight
         ]);
 
-        if (isset($vote['trailer_type']) && $vote['trailer_type'] === 'upvote_comment') {
-            UpvotedComment::create($vote);
-        }
-
         Log::info('result of voter '. $vote['voter'], [$result, $vote]);
 
         if (isset($result['trx_id'])) {
-            //
+            if (isset($vote['trailer_type']) && $vote['trailer_type'] === 'upvote_comment') {
+                UpvotedComment::create($vote);
+            }
         }
     }
 }
