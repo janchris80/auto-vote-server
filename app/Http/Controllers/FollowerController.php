@@ -155,7 +155,7 @@ class FollowerController extends Controller
                 "follower_id" => auth()->id(),
                 "trailer_type" => $request->trailerType,
                 "voting_type" => $votingType,
-                "enable" => true,
+                "is_enable" => true,
                 "weight" => $request->weight ?? 10000, // to get the percent need to 10000 / 100 = 100%
             ]);
 
@@ -165,7 +165,7 @@ class FollowerController extends Controller
                     'author' => $follower->follower->username,
                 ], [
                     'voter_weight' => $follower->weight,
-                    'is_enable' => $follower->is_enable,
+                    'is_enable' => $follower->enable,
                     'voting_type' => $follower->voting_type,
                     'last_voted_at' => $follower->last_voted_at,
                 ]);
