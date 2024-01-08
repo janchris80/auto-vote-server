@@ -22,4 +22,9 @@ class UpvoteComment extends Model
     {
         return $this->belongsTo(User::class, 'author', 'username');
     }
+
+    public function followedUser()
+    {
+        return $this->belongsTo(User::class, 'commenter', 'username');
+    }
 }

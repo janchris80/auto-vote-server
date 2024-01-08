@@ -17,7 +17,7 @@ class CurationResource extends JsonResource
         return [
             "id" => $this->id,
             "username" => $this->author,
-            "userId" => $this->user->id,
+            "userId" => $this->followedUser->id,
             "followersCount" => $this->commenter_count,
             'weight' => $this->voter_weight,
             'votingType' => $this->voting_type,
