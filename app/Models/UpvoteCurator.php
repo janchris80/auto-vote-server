@@ -27,4 +27,9 @@ class UpvoteCurator extends Model
     {
         return $this->belongsTo(User::class, 'author', 'username');
     }
+
+    public function excludedCommunities()
+    {
+        return $this->hasMany(UpvoteCuratorExcludedCommunity::class, 'upvote_id', 'id');
+    }
 }

@@ -18,12 +18,13 @@ class Kernel extends ConsoleKernel
     {
         // $schedule->command('inspire')->hourly();
         // $schedule->command('broadcast:voting')->everyMinute();
-        $schedule->command('broadcast:claim-rewards')->everyFifteenMinutes();
 
         // $schedule->command('publish:test')->everyMinute();
         // $schedule->command('app:test')->everySecond();
-        $schedule->command('stream:block')->everySecond();
         // $schedule->command('app:update-cache-command')->everyFiveMinutes();
+        $schedule->command('stream:block')->everySecond();
+        $schedule->command('broadcast:claim-rewards')->everyFifteenMinutes();
+        $schedule->command('app:update-community-lists-command')->daily();
     }
 
     /**

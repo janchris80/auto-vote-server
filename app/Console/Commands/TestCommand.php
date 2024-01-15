@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Community;
+use App\Models\ExcludedCommunity;
 use App\Models\User;
 use App\Models\UpvoteComment;
 use App\Models\UpvoteCurator;
@@ -23,8 +25,12 @@ class TestCommand extends Command
 
     public function handle()
     {
-        $lastBlock = $this->getLastBlock();
 
-        dump($lastBlock);
+        $test = ExcludedCommunity::query()
+            ->with('comments')
+            ->get();
+
+
+        dd($test->toArray());
     }
 }

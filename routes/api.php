@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CommunityController;
 use App\Http\Controllers\FollowerController;
 use App\Http\Controllers\HiveController;
 use App\Http\Controllers\StatusController;
@@ -51,6 +52,8 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::put('/trailers', [TrailerController::class, 'update']);
 
     Route::put('/follower/update', [FollowerController::class, 'update']);
+
+    Route::get('/communities', [CommunityController::class, 'index']);
 
     Route::group(['prefix' => 'v2'], function () {
         Route::get('upvote/comment', [UpvoteCommentController::class, 'index']);
