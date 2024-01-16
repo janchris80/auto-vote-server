@@ -476,14 +476,6 @@ trait HelperTrait
     public function fetchUpvotePosts($author)
     {
         return UpvotePost::query()
-            ->select(
-                'author',
-                'voter',
-                'voter_weight',
-                'is_enable',
-                'voting_type',
-                'last_voted_at'
-            )
             ->whereHas('user', function ($query) {
                 $query->where('is_enable', true);
             })

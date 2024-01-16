@@ -18,10 +18,12 @@ class CurationResource extends JsonResource
             "id" => $this->id,
             "username" => $this->author,
             "userId" => $this->followedUser->id,
-            "followersCount" => $this->commenter_count,
+            "followersCount" => $this->followers_count,
             'weight' => $this->voter_weight,
             'votingType' => $this->voting_type,
             'isEnable' => $this->is_enable,
+            'votingTime' => $this->voting_time,
+            'excludedCommunities' => $this->excludedCommunities,
         ];
     }
 }

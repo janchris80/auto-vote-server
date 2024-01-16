@@ -2,7 +2,9 @@
 
 namespace App\Jobs\V2;
 
+use App\Models\Downvote;
 use App\Models\UpvoteCurator;
+use App\Models\UpvoteLater;
 use App\Traits\HelperTrait;
 use Carbon\Carbon;
 use Exception;
@@ -63,7 +65,7 @@ class ProcessDownvotesJob implements ShouldQueue
 
             // Skip posts which are older than 6.5 days (561600 seconds)
             if ($timeDifferenceInSeconds < 561600 && $getContent['parent_author'] === '') {
-                $fetchUpvoteCurators = UpvoteCurator::query()
+                $fetchUpvoteCurators = Downvote::query()
                     ->select(
                         // 'author', // followed user
                         'voter', // voter
@@ -78,27 +80,42 @@ class ProcessDownvotesJob implements ShouldQueue
 
                 $activeVotes = collect($getContent['active_votes'])->pluck('voter');
 
-                foreach ($fetchUpvoteCurators as $curator) {
-                    $follower = $curator->voter;
+                foreach ($fetchUpvoteCurators as $downvote) {
+                    $follower = $downvote->voter;
+                    $votingTime = $downvote->voting_time;
 
                     if ($rootAuthor !== $follower) {
                         $hasVoted = $activeVotes->contains($follower);
 
                         if (!$hasVoted) {
-                            $voterWeight = $curator->voting_type === 'scaled'
-                            ? (int)(($curator->voter_weight / 10000) * $weight)
-                                : $curator->voter_weight;
+                            $voterWeight = $downvote->voting_type === 'scaled'
+                            ? (int)(($downvote->voter_weight / 10000) * $weight)
+                                : $downvote->voter_weight;
 
                             $checkLimits = $this->checkLimits($follower, $author, $permlink, $voterWeight);
 
-                            if ($checkLimits) {
+                            if ($checkLimits && $votingTime === 0) {
                                 $this->jobs->push(new VotingJob([
                                     'voter' => $follower,
                                     'author' => $author,
                                     'permlink' => $permlink,
-                                    'weight' => $voterWeight,
+                                    'weight' => -$voterWeight,
                                     'trailer_type' => 'curation',
                                 ]));
+                            }
+
+                            if ($votingTime > 0) {
+                                UpvoteLater::updateOrCreate(
+                                    [
+                                        'voter' => $follower,
+                                        'author' => $author,
+                                        'permlink' => $permlink,
+                                    ],
+                                    [
+                                        'weight' => -$voterWeight,
+                                        'time_to_vote' => now()->addMinutes($votingTime),
+                                    ]
+                                );
                             }
                         }
                     }

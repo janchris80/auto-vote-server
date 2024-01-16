@@ -2,6 +2,7 @@
 
 namespace App\Jobs\V2;
 
+use App\Models\UpvoteLater;
 use App\Traits\HelperTrait;
 use Carbon\Carbon;
 use Exception;
@@ -109,13 +110,14 @@ class ProcessUpvotePostsJob implements ShouldQueue
                 foreach ($results as $row) {
                     $voter = $row->voter;
                     $weight = $row->voter_weight;
+                    $votingTime = $row->voting_time;
 
                     // Process upvote right now
                     // Check limitations
                     $checkLimits = $this->checkLimits($voter, $author, $permlink, $weight);
 
                     // Broadcast upvote if user details are not limited
-                    if ($checkLimits) {
+                    if ($checkLimits && $votingTime === 0) {
                         $this->jobs->push(new VotingJob([
                             'voter' => $voter,
                             'author' => $author,
@@ -123,6 +125,20 @@ class ProcessUpvotePostsJob implements ShouldQueue
                             'weight' => $weight,
                             'trailer_type' => 'upvote_post',
                         ]));
+                    }
+
+                    if ($votingTime > 0) {
+                        UpvoteLater::updateOrCreate(
+                            [
+                                'voter' => $voter,
+                                'author' => $author,
+                                'permlink' => $permlink,
+                            ],
+                            [
+                                'weight' => $weight,
+                                'time_to_vote' => now()->addMinutes($votingTime),
+                            ]
+                        );
                     }
                 }
 
@@ -135,6 +151,4 @@ class ProcessUpvotePostsJob implements ShouldQueue
             throw new Exception($e->getMessage());
         }
     }
-
-
 }

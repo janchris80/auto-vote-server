@@ -27,4 +27,9 @@ class UpvotePost extends Model
     {
         return $this->belongsTo(User::class, 'author', 'username');
     }
+
+    public function excludedCommunities()
+    {
+        return $this->hasMany(UpvotePostExcludedCommunity::class, 'upvote_id', 'id');
+    }
 }

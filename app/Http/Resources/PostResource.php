@@ -20,6 +20,8 @@ class PostResource extends JsonResource
             "userId" => $this->followedUser->id,
             'weight' => $this->voter_weight,
             'isEnable' => $this->is_enable,
+            'votingTime' => $this->voting_time,
+            'excludedCommunities' => $this->excludedCommunities,
         ];
     }
 }
