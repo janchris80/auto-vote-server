@@ -4,6 +4,7 @@ namespace App\Jobs\V2;
 
 use App\Models\UpvoteComment;
 use App\Models\UpvotedComment;
+use App\Models\UpvoteLater;
 use App\Traits\HelperTrait;
 use Exception;
 use Illuminate\Bus\Queueable;
@@ -72,10 +73,11 @@ class ProcessUpvoteCommentsJob implements ShouldQueue
                 ->get();
 
             foreach ($fetchUpvoteComments as $comment) {
+                $votingTime = $comment->voting_time;
 
                 $checkLimits = $this->checkLimits($comment->author, $commenter, $permlink, $comment->voter_weight);
 
-                if ($checkLimits) {
+                if ($checkLimits && $votingTime === 0) {
                     $this->jobs->push(new VotingJob([
                         'voter' => $comment->author, // voter and author of the post
                         'author' => $commenter, // followed user, who commented on your post
@@ -83,6 +85,20 @@ class ProcessUpvoteCommentsJob implements ShouldQueue
                         'weight' => $comment->voter_weight,
                         'trailer_type' => 'upvote_comment',
                     ]));
+                }
+
+                if ($votingTime > 0) {
+                    UpvoteLater::updateOrCreate(
+                        [
+                            'voter' => $comment->author,
+                            'author' => $commenter,
+                            'permlink' => $permlink,
+                        ],
+                        [
+                            'weight' => $comment->voter_weight,
+                            'time_to_vote' => now()->addMinutes($votingTime),
+                        ]
+                    );
                 }
             }
 

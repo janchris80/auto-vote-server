@@ -35,7 +35,9 @@ class UpdateFollowerRequest extends FormRequest
             'isEnable' => ['required', 'boolean'], // enable
             'votingType' => ['required_if:trailerType,curation,downvote', 'in:scaled,fixed'], // voting_type
             'trailerType' => ['required', 'in:curation,downvote,upvote_comment,upvote_post'], // trailer_type
-            'weight' => ['required'], // weight
+            'weight' => ['required', 'max:100', 'min:0'], // weight
+            'communities' => ['array'],
+            'votingTime' => ['required'],
         ];
     }
 }

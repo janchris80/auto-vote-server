@@ -10,16 +10,18 @@ use App\Http\Resources\CommentResource;
 use App\Http\Resources\CurationResource;
 use App\Http\Resources\DownvoteResource;
 use App\Http\Resources\FollowingResource;
-use App\Http\Resources\FollowingUpvoteCommentResource;
-use App\Http\Resources\FollowingUpvotePostResource;
 use App\Http\Resources\GetUserFollowerResource;
 use App\Http\Resources\PopularResource;
 use App\Http\Resources\PostResource;
 use App\Models\Downvote;
+use App\Models\DownvoteExcludedCommunity;
 use App\Models\Trailer;
 use App\Models\UpvoteComment;
+use App\Models\UpvoteCommentExcludedCommunity;
 use App\Models\UpvoteCurator;
+use App\Models\UpvoteCuratorExcludedCommunity;
 use App\Models\UpvotePost;
+use App\Models\UpvotePostExcludedCommunity;
 use App\Models\User;
 use App\Traits\HttpResponses;
 use Illuminate\Http\Request;
@@ -81,12 +83,14 @@ class FollowerController extends Controller
     public function getFollowingCuration()
     {
         $user = auth()->user();
-        $followings = UpvoteCurator::with('followedUser')
+        $followings = UpvoteCurator::with(['followedUser', 'excludedCommunities'])
             ->from('upvote_curators as t')
-            ->join(DB::raw('(SELECT author, COUNT(*) as author_count FROM upvote_curators GROUP BY author) c'), 't.author', '=', 'c.author')
+            ->join(DB::raw('(SELECT author, COUNT(*) as followers_count FROM upvote_curators GROUP BY author) c'), 't.author', '=', 'c.author')
             ->where('t.voter', '=', $user->username)
-            ->select('t.id', 't.author', 't.voter', 't.voter_weight', 't.is_enable', 't.voting_type', 'c.author_count')
+            ->select('t.id', 't.author', 't.voter', 't.voter_weight', 't.is_enable', 't.voting_type', 't.voting_time', 'c.followers_count')
             ->paginate(10);
+
+        // return ($followings);
 
         return CurationResource::collection($followings);
     }
@@ -95,11 +99,11 @@ class FollowerController extends Controller
     {
         // Get the ID of the authenticated user
         $user = auth()->user();
-        $followings = Downvote::with('followedUser')
+        $followings = Downvote::with(['followedUser', 'excludedCommunities'])
             ->from('downvotes as t')
-            ->join(DB::raw('(SELECT author, COUNT(*) as author_count FROM downvotes GROUP BY author) c'), 't.author', '=', 'c.author')
+            ->join(DB::raw('(SELECT author, COUNT(*) as followers_count FROM downvotes GROUP BY author) c'), 't.author', '=', 'c.author')
             ->where('t.voter', '=', $user->username)
-            ->select('t.id', 't.author', 't.voter', 't.voter_weight', 't.is_enable', 't.voting_type', 'c.author_count')
+            ->select('t.id', 't.author', 't.voter', 't.voter_weight', 't.is_enable', 't.voting_type', 't.voting_time', 'c.followers_count')
             ->paginate(10);
 
         return DownvoteResource::collection($followings);
@@ -110,11 +114,11 @@ class FollowerController extends Controller
         // Get the ID of the authenticated user
         $user = auth()->user();
 
-        $followings = UpvoteComment::with('followedUser')
+        $followings = UpvoteComment::with(['followedUser', 'excludedCommunities'])
             ->from('upvote_comments as t')
-            ->join(DB::raw('(SELECT commenter, COUNT(*) as commenter_count FROM upvote_comments GROUP BY commenter) c'), 't.commenter', '=', 'c.commenter')
+            ->join(DB::raw('(SELECT commenter, COUNT(*) as followers_count FROM upvote_comments GROUP BY commenter) c'), 't.commenter', '=', 'c.commenter')
             ->where('t.author', '=', $user->username)
-            ->select('t.id', 't.author', 't.commenter', 't.voter_weight', 't.is_enable', 't.voting_type', 'c.commenter_count')
+            ->select('t.id', 't.author', 't.commenter', 't.voter_weight', 't.is_enable', 't.voting_type', 't.voting_time', 'c.followers_count')
             ->paginate(10);
 
         return CommentResource::collection($followings);
@@ -123,11 +127,11 @@ class FollowerController extends Controller
     public function getFollowingUpvotePost()
     {
         $user = auth()->user();
-        $followings = UpvotePost::with('followedUser')
+        $followings = UpvotePost::with(['followedUser', 'excludedCommunities'])
             ->from('upvote_posts as t')
-            ->join(DB::raw('(SELECT author, COUNT(*) as author_count FROM upvote_posts GROUP BY author) c'), 't.author', '=', 'c.author')
+            ->join(DB::raw('(SELECT author, COUNT(*) as followers_count FROM upvote_posts GROUP BY author) c'), 't.author', '=', 'c.author')
             ->where('t.voter', '=', $user->username)
-            ->select('t.id', 't.author', 't.voter', 't.voter_weight', 't.is_enable', 't.voting_type', 'c.author_count')
+            ->select('t.id', 't.author', 't.voter', 't.voter_weight', 't.is_enable', 't.voting_type', 't.voting_time', 'c.followers_count')
             ->paginate(10);
 
         return PostResource::collection($followings);
@@ -259,21 +263,27 @@ class FollowerController extends Controller
     {
         $request->validated();
         $trailerType = strtolower($request->trailerType);
+        $communities = $request->communities;
+        $user = auth()->user();
 
         if ($trailerType === 'upvote_post') {
             $follower = UpvotePost::find($request->id);
+            $excluded = UpvotePostExcludedCommunity::query();
         }
 
         if ($trailerType === 'upvote_comment') {
             $follower = UpvoteComment::find($request->id);
+            $excluded = UpvoteCommentExcludedCommunity::query();
         }
 
         if ($trailerType === 'curation') {
             $follower = UpvoteCurator::find($request->id);
+            $excluded = UpvoteCuratorExcludedCommunity::query();
         }
 
         if ($trailerType === 'downvote') {
             $follower = Downvote::find($request->id);
+            $excluded = DownvoteExcludedCommunity::query();
         }
 
         if (!$follower) {
@@ -283,7 +293,18 @@ class FollowerController extends Controller
         $follower->is_enable = $request->isEnable;
         $follower->voting_type = $request->votingType ? strtolower($request->votingType) : 'fixed';
         $follower->voter_weight = $request->weight * 100;
+        $follower->voting_time = $request->votingTime;
         $follower->save();
+
+        $excluded->where('upvote_id', $follower->id)
+            ->updateOrCreate(
+                [
+                    'upvote_id' => $follower->id,
+                ],
+                [
+                    'list' => json_encode($communities),
+                ]
+            );
 
         return $this->success($follower, 'User was successfully updated.');
     }

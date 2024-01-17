@@ -22,4 +22,9 @@ class Downvote extends Model
     {
         return $this->belongsTo(User::class, 'voter', 'username');
     }
+
+    public function excludedCommunities()
+    {
+        return $this->hasMany(UpvoteCuratorExcludedCommunity::class, 'upvote_id', 'id');
+    }
 }
