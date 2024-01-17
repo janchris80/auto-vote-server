@@ -88,11 +88,15 @@ class HiveController extends Controller
 
         $username = $request->username;
         $userId = auth()->id();
+
+        // Check if the username starts with '@', and remove it
+        $username = ltrim($username, '@');
+
         $response = Http::post('https://rpc.d.buzz/', [
             'jsonrpc' => '2.0',
             'method' => 'bridge.get_profile',
             'params' => [
-                'account' => $request->username
+                'account' => $username
             ],
             'id' => 1,
         ]);
