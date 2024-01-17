@@ -66,11 +66,13 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
             if ($timeDifferenceInSeconds < 561600 && $getContent['parent_author'] === '') {
                 $fetchUpvoteCurators = UpvoteCurator::query()
                     ->select(
-                        // 'author', // followed user
+                        'id',
+                        'author', // followed user
                         'voter', // voter
                         'voter_weight',
                         'voting_type',
                     )
+                    ->with(['excludedCommunities'])
                     ->where('is_enable', 1)
                     ->where('author', $followed)
                     ->get();
@@ -80,8 +82,13 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
                 $activeVotes = collect($getContent['active_votes'])->pluck('voter');
 
                 foreach ($fetchUpvoteCurators as $curator) {
+                    $excluded = json_decode($curator->excludedCommunities[0]->list, true);
                     $follower = $curator->voter;
                     $votingTime = $curator->voting_time;
+
+                    if (in_array($getContent['category'], $excluded)) {
+                        return null;
+                    }
 
                     if ($rootAuthor !== $follower) {
                         $hasVoted = $activeVotes->contains($follower);
