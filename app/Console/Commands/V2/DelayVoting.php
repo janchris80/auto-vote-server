@@ -2,17 +2,10 @@
 
 namespace App\Console\Commands\V2;
 
-use App\Jobs\V2\ProcessDownvotesJob;
-use App\Jobs\V2\ProcessUpvoteCommentsJob;
-use App\Jobs\V2\ProcessUpvoteCuratorsJob;
-use App\Jobs\V2\ProcessUpvoteLatersJob;
-use App\Jobs\V2\ProcessUpvotePostsJob;
 use App\Jobs\V2\VotingJob;
 use App\Models\UpvoteLater;
 use App\Traits\HelperTrait;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
 
 class DelayVoting extends Command
 {

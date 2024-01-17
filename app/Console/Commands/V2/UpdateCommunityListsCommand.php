@@ -15,35 +15,34 @@ class UpdateCommunityListsCommand extends Command
 
     public function handle()
     {
-        $this->getAllCommunities();
-        // $countCommunities = Community::count();
+        $countCommunities = Community::count();
+        
+        if ($countCommunities === 0) {
+            $this->getAllCommunities();
+        }
 
-        // if ($countCommunities === 0) {
+        $communities = $this->getApiData('bridge.list_communities', [
+            'sort' => 'new',
+            'last' => '',
+        ]);
 
-        // }
-
-        // $communities = $this->getApiData('bridge.list_communities', [
-        //     'sort' => 'new',
-        //     'last' => '',
-        // ]);
-
-        // collect($communities)
-        //     ->map(function ($community) {
-        //         return [
-        //             'name' => $community['name'],
-        //             'title' => $community['title'],
-        //             'created_at' => $community['created_at'],
-        //             'updated_at' => now(),
-        //         ];
-        //     })
-        //     ->each(function ($community) {
-        //         Community::updateOrCreate([
-        //             'name' => $community['name'],
-        //         ], [
-        //             'title' => $community['title'],
-        //             'created_at' => $community['created_at'],
-        //         ]);
-        //     });
+        collect($communities)
+            ->map(function ($community) {
+                return [
+                    'name' => $community['name'],
+                    'title' => $community['title'],
+                    'created_at' => $community['created_at'],
+                    'updated_at' => now(),
+                ];
+            })
+            ->each(function ($community) {
+                Community::updateOrCreate([
+                    'name' => $community['name'],
+                ], [
+                    'title' => $community['title'],
+                    'created_at' => $community['created_at'],
+                ]);
+            });
     }
 
     public function getAllCommunities()
