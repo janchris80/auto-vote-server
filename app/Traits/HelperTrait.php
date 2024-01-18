@@ -78,16 +78,6 @@ trait HelperTrait
      */
     public function getApiData(string $method, array $params, int $loop = 0): array
     {
-        // try {
-
-
-        //     // Decode and return the JSON response
-        //     return $response->json()['result'] ?? [];
-        // } catch (\Exception $e) {
-        //     Log::error('Error in getApiData ' . $method . ': ' . $e->getMessage());
-        //     return [];
-        // }
-
         $response = Http::timeout($this->timeout)
             ->post($this->rpcNodes[$loop], [
                 'jsonrpc' => '2.0',
@@ -99,36 +89,30 @@ trait HelperTrait
         if (!$response->successful()) {
             if (sizeof($this->rpcNodes) - 1 > $loop) {
                 return $this->getApiData($method, $params, ++$loop);
-            } else {
-                throw new \Exception('Network failed after ' . $loop . ' attempts');
             }
-        } else {
-            $json = $response->json();
+            throw new \Exception('Network failed after ' . $loop . ' attempts. Last error: ' . json_encode($response->json()));
+        }
 
-            if (array_key_exists('result', $json)) {
-                return $json['result'];
-            }
+        $responseBody = $response->json();
 
-            if (array_key_exists('error', $json)) {
-                $error = $json['error'];
-                if (array_key_exists('code', $error)) {
-                    // -32003
-                    // Unable to acquire database lock
-                    if ($error['code'] === -32003 && $error['message'] === 'Unable to acquire database lock') {
-                        if (sizeof($this->rpcNodes) - 1 > $loop) {
-                            return $this->getApiData($method, $params, ++$loop);
-                        } else {
-                            throw new \Exception('Network failed after ' . $loop . ' attempts');
-                        }
-                    }
-                    return [];
+        if (array_key_exists('result', $responseBody)) {
+            return $responseBody['result'] ?? [];
+        }
+
+        if (array_key_exists('error', $responseBody)) {
+            $error = $responseBody['error'];
+            if (array_key_exists('code', $error) && $error['code'] === -32003 && $error['message'] === 'Unable to acquire database lock') {
+                if (sizeof($this->rpcNodes) - 1 > $loop) {
+                    return $this->getApiData($method, $params, ++$loop);
                 }
+                throw new \Exception('Network failed after ' . $loop . ' attempts. Last error: ' . json_encode($responseBody));
             }
-
-            // return $json['error'];
             return [];
         }
+
+        return [];
     }
+
 
     /**
      * Get posts for a specific Hive account.
