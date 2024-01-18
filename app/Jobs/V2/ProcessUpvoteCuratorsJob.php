@@ -53,7 +53,7 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
         try {
             $getContent = $this->getContent($author, $permlink);
 
-            if (!$getContent) {
+            if (!$getContent->count()) {
                 return null;
             }
 
