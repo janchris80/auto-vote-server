@@ -21,7 +21,7 @@ class RedisCacheController extends Controller
 
         return response()->json([
             'last_block' => cache('last_block'),
-            'head_block_number' => $getDynamicGlobalProperties['head_block_number'] ?? null,
+            'head_block_number' => $getDynamicGlobalProperties,
             'upvote_downvote_authors' => cache('upvote_downvote_authors'),
             'upvote_curator_authors' => cache('upvote_curator_authors'),
             'upvote_comment' => cache('upvote_comment'),

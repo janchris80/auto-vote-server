@@ -29,14 +29,28 @@ trait HelperTrait
     public $fiveMinutesInSecond = 300; // seconds
     public $downvoteManaRatio  = 0.25;
     public $maxIndex = 500;
+    public $rpcNodes = [
+        'https://rpc.d.buzz/',
+        'https://api.hive.blog',
+        'https://rpc.ecency.com/',
+        'https://hive-api.3speak.tv/',
+        'https://hived.privex.io',
+        'https://anyx.io',
+        'https://api.deathwing.me',
+        'https://hived.emre.sh',
+        'https://hive-api.arcange.eu',
+        'https://api.openhive.network',
+        'https://techcoderx.com',
+        'https://hive.roelandp.nl',
+        'https://api.c0ff33a.uk',
+    ];
+    public $timeout = 300;
 
     public function hive()
     {
         $hive = new Hive([
-            'rpcNodes' => [
-                'https://rpc.d.buzz/',
-            ],
-            'timeout' => 300
+            'rpcNodes' => $this->rpcNodes,
+            'timeout' => $this->timeout,
         ]);
 
         return $hive;
@@ -62,34 +76,56 @@ trait HelperTrait
      * @param array $params
      * @return array
      */
-    public function getApiData(string $method, array $params): array
+    public function getApiData(string $method, array $params, int $loop = 0): array
     {
-        try {
-            $response = Http::post(config('hive.api_url_node'), [
+        // try {
+
+
+        //     // Decode and return the JSON response
+        //     return $response->json()['result'] ?? [];
+        // } catch (\Exception $e) {
+        //     Log::error('Error in getApiData ' . $method . ': ' . $e->getMessage());
+        //     return [];
+        // }
+
+        $response = Http::timeout($this->timeout)
+            ->post($this->rpcNodes[$loop], [
                 'jsonrpc' => '2.0',
                 'method' => $method,
                 'params' => $params,
                 'id' => 1,
             ]);
 
-            // $guzzleResponse = $response->toPsrResponse();
-            // $responseSize = $guzzleResponse->getBody()->getSize();
-            // $responseSizeKB = number_format($responseSize / 1024, 2);
+        if (!$response->successful()) {
+            if (sizeof($this->rpcNodes) - 1 > $loop) {
+                return $this->getApiData($method, $params, ++$loop);
+            } else {
+                throw new \Exception('Network failed after ' . $loop . ' attempts');
+            }
+        } else {
+            $json = $response->json();
 
-            // Retrieve the current total size from the cache
-            // $totalSize = Cache::get('data_size', 0);
+            if (array_key_exists('result', $json)) {
+                return $json['result'];
+            }
 
-            // Add the current response size to the total
-            // $totalSize += $responseSizeKB;
+            if (array_key_exists('error', $json)) {
+                $error = $json['error'];
+                if (array_key_exists('code', $error)) {
+                    // -32003
+                    // Unable to acquire database lock
+                    if ($error['code'] === -32003 && $error['message'] === 'Unable to acquire database lock') {
+                        if (sizeof($this->rpcNodes) - 1 > $loop) {
+                            return $this->getApiData($method, $params, ++$loop);
+                        } else {
+                            throw new \Exception('Network failed after ' . $loop . ' attempts');
+                        }
+                    }
+                    return $error;
+                }
+            }
 
-            // Save the updated total size to the cache
-            // Cache::forever('data_size', $totalSize);
-
-            // Decode and return the JSON response
-            return $response->json()['result'] ?? [];
-        } catch (\Exception $e) {
-            Log::error('Error in getApiData ' . $method . ': ' . $e->getMessage());
-            return [];
+            return $json['error'];
         }
     }
 
