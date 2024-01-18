@@ -17,7 +17,7 @@ class RedisCacheController extends Controller
      */
     public function index(Request $request)
     {
-        $getDynamicGlobalProperties = $this->getDynamicGlobalProperties();
+        $getDynamicGlobalProperties = $this->getApiData('condenser_api.get_dynamic_global_properties', []);
 
         return response()->json([
             'last_block' => cache('last_block'),
