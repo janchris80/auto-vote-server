@@ -121,11 +121,12 @@ trait HelperTrait
                             throw new \Exception('Network failed after ' . $loop . ' attempts');
                         }
                     }
-                    return $error;
+                    return [];
                 }
             }
 
-            return $json['error'];
+            // return $json['error'];
+            return [];
         }
     }
 
