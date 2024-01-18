@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CommunityController;
 use App\Http\Controllers\FollowerController;
 use App\Http\Controllers\HiveController;
+use App\Http\Controllers\RedisCacheController;
 use App\Http\Controllers\StatusController;
 use App\Http\Controllers\TrailerController;
 use App\Http\Controllers\UpvoteCommentController;
@@ -25,6 +26,8 @@ Route::middleware('throttle:10,1')->group(function () {
     Route::get('/vote/logs', [VoteLogController::class, 'index']);
     // Check API status
     Route::get('/status', StatusController::class);
+
+    Route::get('/redis', [RedisCacheController::class, 'index']);
 });
 
 // protected route
