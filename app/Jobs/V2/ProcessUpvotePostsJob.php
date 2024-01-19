@@ -110,7 +110,7 @@ class ProcessUpvotePostsJob implements ShouldQueue
                 foreach ($results as $row) {
                     $voter = $row->voter;
                     $weight = $row->voter_weight;
-                    $votingTime = $row->voting_time;
+                    $votingTime = $row->voting_time ?? 0;
 
                     // Process upvote right now
                     // Check limitations

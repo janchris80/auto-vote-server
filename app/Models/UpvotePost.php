@@ -15,6 +15,7 @@ class UpvotePost extends Model
         'voter_weight',
         'is_enable',
         'voting_type',
+        'voting_time',
         'last_voted_at',
     ];
 
