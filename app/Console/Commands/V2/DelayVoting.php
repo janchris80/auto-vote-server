@@ -25,6 +25,7 @@ class DelayVoting extends Command
                 'author' => $upvoteLater->author,
                 'permlink' => $upvoteLater->permlink,
                 'weight' => $upvoteLater->weight,
+                'trailer_type' => 'delay_voting'
             ]));
 
             // Optionally, you can delete the processed record here
