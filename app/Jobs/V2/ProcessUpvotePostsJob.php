@@ -103,49 +103,64 @@ class ProcessUpvotePostsJob implements ShouldQueue
     {
         try {
             // Check author's recent post date
-            if ($this->checkAuthor($author)) {
+            if (!$this->checkAuthor($author)) {
                 // Fetch fanbase data from the database
-                $results = $this->fetchUpvotePosts($author);
+                return false;
+            }
 
-                foreach ($results as $row) {
-                    $voter = $row->voter;
-                    $weight = $row->voter_weight;
-                    $votingTime = $row->voting_time ?? 0;
+            $getContent = $this->getContent($author, $permlink);
 
-                    // Process upvote right now
-                    // Check limitations
-                    $checkLimits = $this->checkLimits($voter, $author, $permlink, $weight);
+            if ($getContent->count() === 0) {
+                return false;
+            }
 
-                    // Broadcast upvote if user details are not limited
-                    if ($checkLimits && $votingTime === 0) {
-                        $this->jobs->push(new VotingJob([
+            $results = $this->fetchUpvotePosts($author);
+            $activeVotes = collect($getContent['active_votes'])->pluck('voter');
+
+            foreach ($results as $row) {
+                $voter = $row->voter;
+                $weight = $row->voter_weight;
+                $votingTime = $row->voting_time ?? 0;
+
+                $hasVoted = $activeVotes->contains($voter);
+
+                if ($hasVoted) {
+                    continue 1;
+                }
+
+                // Process upvote right now
+                // Check limitations
+                $checkLimits = $this->checkLimits($voter, $author, $permlink, $weight);
+
+                // Broadcast upvote if user details are not limited
+                if ($checkLimits && $votingTime === 0) {
+                    $this->jobs->push(new VotingJob([
+                        'voter' => $voter,
+                        'author' => $author,
+                        'permlink' => $permlink,
+                        'weight' => $weight,
+                        'trailer_type' => 'upvote_post',
+                    ]));
+                }
+
+                if ($votingTime > 0) {
+                    UpvoteLater::updateOrCreate(
+                        [
                             'voter' => $voter,
                             'author' => $author,
                             'permlink' => $permlink,
+                        ],
+                        [
                             'weight' => $weight,
-                            'trailer_type' => 'upvote_post',
-                        ]));
-                    }
-
-                    if ($votingTime > 0) {
-                        UpvoteLater::updateOrCreate(
-                            [
-                                'voter' => $voter,
-                                'author' => $author,
-                                'permlink' => $permlink,
-                            ],
-                            [
-                                'weight' => $weight,
-                                'time_to_vote' => now()->addMinutes($votingTime),
-                            ]
-                        );
-                    }
+                            'time_to_vote' => now()->addMinutes($votingTime),
+                        ]
+                    );
                 }
+            }
 
-                if ($this->jobs->count()) {
-                    $this->processBatchVotingJob($this->jobs->all());
-                    $this->jobs = collect();
-                }
+            if ($this->jobs->count()) {
+                $this->processBatchVotingJob($this->jobs->all());
+                $this->jobs = collect();
             }
         } catch (Exception $e) {
             throw new Exception($e->getMessage());
