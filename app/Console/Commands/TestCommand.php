@@ -26,11 +26,5 @@ class TestCommand extends Command
     public function handle()
     {
 
-        $test = ExcludedCommunity::query()
-            ->with('comments')
-            ->get();
-
-
-        dd($test->toArray());
     }
 }
