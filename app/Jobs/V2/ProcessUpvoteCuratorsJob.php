@@ -82,12 +82,16 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
                 $activeVotes = collect($getContent['active_votes'])->pluck('voter');
 
                 foreach ($fetchUpvoteCurators as $curator) {
-                    $excluded = json_decode($curator->excludedCommunities[0]->list, true);
+                    $excludedCommunities = $curator->excludedCommunities->first();
                     $follower = $curator->voter;
                     $votingTime = $curator->voting_time;
 
-                    if (in_array($getContent['category'], $excluded)) {
-                        return null;
+                    if (isset($excludedCommunities->list)) {
+                        $excluded = json_decode($excludedCommunities->list, true);
+                        Log::info('excluded', [$excluded, 'is_excluded' => in_array($getContent['category'], $excluded), '$votingTime' => $votingTime]);
+                        if (in_array($getContent['category'], $excluded)) {
+                            return null;
+                        }
                     }
 
                     if ($rootAuthor !== $follower) {
