@@ -62,11 +62,6 @@ class StreamBlock extends Command
                 Log::info('operations ' . $lastBlock . ' downvote', $operations['downvote']->toArray());
                 ProcessDownvotesJob::dispatch($operations['downvote'])->onQueue('downvote');
             }
-
-            // if (count($operations['comment']) || count($operations['post']) || count($operations['curation']) || count($operations['downvote'])) {
-            // Log::info('operations', $operations);
-            // }
-            // Log::info('lastBlock: ' . $lastBlock);
         }
     }
 
@@ -81,10 +76,6 @@ class StreamBlock extends Command
             ]);
 
             $retryCount += 1;
-
-            // if (count($streamBlockOperations['ops'] ?? []) === 0) {
-            //     usleep(500000); // 1,000,000 microsecond = 1 second, 500,000microsecond = 0.5 second
-            // }
         }
 
         return $streamBlockOperations['ops'] ?? [];
