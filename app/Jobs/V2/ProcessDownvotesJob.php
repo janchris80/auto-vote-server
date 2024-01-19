@@ -82,7 +82,7 @@ class ProcessDownvotesJob implements ShouldQueue
 
                 foreach ($fetchUpvoteCurators as $downvote) {
                     $follower = $downvote->voter;
-                    $votingTime = $downvote->voting_time;
+                    $votingTime = $downvote->voting_time ?? 0;
 
                     if ($rootAuthor !== $follower) {
                         $hasVoted = $activeVotes->contains($follower);

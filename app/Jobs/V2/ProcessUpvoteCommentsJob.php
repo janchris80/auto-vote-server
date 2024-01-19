@@ -73,7 +73,7 @@ class ProcessUpvoteCommentsJob implements ShouldQueue
                 ->get();
 
             foreach ($fetchUpvoteComments as $comment) {
-                $votingTime = $comment->voting_time;
+                $votingTime = $comment->voting_time ?? 0;
 
                 $checkLimits = $this->checkLimits($comment->author, $commenter, $permlink, $comment->voter_weight);
 

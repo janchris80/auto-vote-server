@@ -84,7 +84,7 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
                 foreach ($fetchUpvoteCurators as $curator) {
                     $excludedCommunities = $curator->excludedCommunities->first();
                     $follower = $curator->voter;
-                    $votingTime = $curator->voting_time;
+                    $votingTime = $curator->voting_time ?? 0;
 
                     if (isset($excludedCommunities->list)) {
                         $excluded = json_decode($excludedCommunities->list, true);
