@@ -523,14 +523,6 @@ trait HelperTrait
     {
         return Cache::remember('upvote_comment', $this->fiveMinutesInSecond, function () {
             return UpvoteComment::query()
-                ->select(
-                    'author',
-                    'commenter',
-                    'voter_weight',
-                    'is_enable',
-                    'voting_type',
-                    'last_voted_at'
-                )
                 ->where('is_enable', true)
                 ->whereHas('user', function ($query) {
                     $query->where('is_enable', true);
