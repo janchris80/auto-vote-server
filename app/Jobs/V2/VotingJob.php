@@ -37,7 +37,7 @@ class VotingJob implements ShouldQueue
             $vote['weight'],     // weight
         ]);
 
-        Log::info('result of voter '. $vote['voter'], [$result, $vote]);
+        Log::info('result of voter ' . $vote['voter'] . ' ' . $vote['trailer_type'], [$result, $vote]);
 
         if (isset($result['trx_id'])) {
             if (isset($vote['trailer_type']) && $vote['trailer_type'] === 'upvote_comment') {

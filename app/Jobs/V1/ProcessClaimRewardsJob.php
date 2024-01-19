@@ -34,9 +34,6 @@ class ProcessClaimRewardsJob implements ShouldQueue
      */
     public function handle(): void
     {
-        $startTime = microtime(true); // Start timer
-        //Log::info("Starting ProcessClaimRewardsJob for followers chunk: " . count($this->followers));
-        // broadcastClaimReward logic here
         foreach ($this->followers as $follower) {
             try {
                 $this->broadcastClaimReward($follower);
@@ -44,29 +41,13 @@ class ProcessClaimRewardsJob implements ShouldQueue
                 Log::warning('Error claiming rewards: ' . $e->getMessage());
             }
         }
-
-        //Log::info("Job ProcessClaimRewardsJob successfully");
-        //Log::info("Total time taken: {" . microtime(true) - $startTime . "} seconds\n");
     }
 
     protected function broadcastClaimReward($follower)
     {
         $hive = $this->hive();
-
         $username = $follower->username;
-        $userId = $follower->id;
-        $discordWebhookUrl = $follower->discord_webhook_url;
-
-        $hasRewards = true;
-
-        // if ($this->canMakeRequest('claim.condenser_api.get_accounts')) {
         $account = $this->getAccounts($username)->first();
-        // $account = $this->makeHttpRequest([
-        //     'jsonrpc' => '2.0',
-        //     'method' => 'condenser_api.get_accounts',
-        //     'params' => [[$username]],
-        //     'id' => 1,
-        // ])[0];
 
         // Process the response
         if (!empty($account)) {
@@ -74,10 +55,7 @@ class ProcessClaimRewardsJob implements ShouldQueue
             $rewardHbd = $account['reward_hbd_balance'];
             $rewardVests = $account['reward_vesting_balance'];
 
-            if ($rewardHive === '0.000 HIVE' && $rewardHbd === '0.000 HBD' && $rewardVests === '0.000000 VESTS') {
-                // Log::info('No rewards to claim for ' . $username);
-                $hasRewards = false;
-            } else {
+            if ($rewardHive !== '0.000 HIVE' && $rewardHbd !== '0.000 HBD' && $rewardVests !== '0.000000 VESTS') {
                 $opParams = [
                     'account' => $username,
                     'reward_hive' => $rewardHive,
@@ -90,30 +68,9 @@ class ProcessClaimRewardsJob implements ShouldQueue
                     'claim_reward_balance',
                     array_values($opParams)
                 );
+
+                Log::info('Rewards claim for ' . $username);
             }
         }
-
-        if ($discordWebhookUrl && $hasRewards) {
-            $message = $hasRewards ? 'Rewards claimed successfully for' : 'No rewards to claim for';
-
-            $logMessages = <<<LOG
-                ----------------------------------------------------------
-                $message **$username**
-                ----------------------------------------------------------
-                LOG;
-
-            SendDiscordNotificationJob::dispatch($userId, [], $logMessages)->onQueue('notification');
-        }
-
-        // Cache the timestamp of the request
-        // Cache::put('last_api_request_time.claim.condenser_api.get_accounts', now(), 60); // 180 seconds cooldown = 3 minutes
-        // } else {
-        //     Log::warning("Rate limit hit claim.condenser_api.get_accounts, delaying the request for follower: " . $follower->id);
-        // }
-    }
-
-    protected function canMakeRequest($name)
-    {
-        return !Cache::has('last_api_request_time.' . $name);
     }
 }
