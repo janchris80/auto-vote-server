@@ -53,7 +53,7 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
         try {
             $getContent = $this->getContent($author, $permlink);
 
-            if (!$getContent->count()) {
+            if ($getContent->count() === 0) {
                 return null;
             }
 
@@ -88,7 +88,6 @@ class ProcessUpvoteCuratorsJob implements ShouldQueue
 
                     if (isset($excludedCommunities->list)) {
                         $excluded = json_decode($excludedCommunities->list, true);
-                        Log::info('excluded', [$excluded, 'is_excluded' => in_array($getContent['category'], $excluded), '$votingTime' => $votingTime]);
                         if (in_array($getContent['category'], $excluded)) {
                             return null;
                         }
