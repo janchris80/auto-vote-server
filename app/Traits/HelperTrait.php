@@ -482,7 +482,7 @@ trait HelperTrait
 
     public function fetchUpvotePostAuthors(): array
     {
-        return Cache::rememberForever('upvote_post_authors', $this->fiveMinutesInSecond, function () {
+        return Cache::rememberForever('upvote_post_authors',  function () {
             return UpvotePost::query()
                 ->whereHas('user', function ($query) {
                     $query->where('is_enable', true);
@@ -507,7 +507,7 @@ trait HelperTrait
 
     protected function fetchUpvoteCommentAuthors(): array
     {
-        return Cache::rememberForever('upvote_comment_authors', $this->fiveMinutesInSecond, function () {
+        return Cache::rememberForever('upvote_comment_authors', function () {
             return UpvoteComment::query()
                 ->whereHas('user', function ($query) {
                     $query->where('is_enable', true);
@@ -521,7 +521,7 @@ trait HelperTrait
 
     protected function fetchUpvoteComments()
     {
-        return Cache::rememberForever('upvote_comment', $this->fiveMinutesInSecond, function () {
+        return Cache::rememberForever('upvote_comment',  function () {
             return UpvoteComment::query()
                 ->where('is_enable', true)
                 ->whereHas('user', function ($query) {
@@ -533,7 +533,7 @@ trait HelperTrait
 
     protected function fetchUpvoteCurationFollowedAuthors(): array
     {
-        return Cache::rememberForever('upvote_curator_authors', $this->fiveMinutesInSecond, function () {
+        return Cache::rememberForever('upvote_curator_authors',  function () {
             return UpvoteCurator::query()
                 ->whereHas('user', function ($query) {
                     $query->where('is_enable', true);
@@ -547,7 +547,7 @@ trait HelperTrait
 
     protected function fetchDownvoteFollowedAuthors(): array
     {
-        return Cache::rememberForever('upvote_downvote_authors', $this->fiveMinutesInSecond, function () {
+        return Cache::rememberForever('upvote_downvote_authors',  function () {
             return Downvote::select('author')
                 ->whereHas('user', function ($query) {
                     $query->where('is_enable', true);
