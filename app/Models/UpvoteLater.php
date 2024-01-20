@@ -10,6 +10,8 @@ class UpvoteLater extends Model
 {
     use HasFactory;
 
+    protected $primaryKey = 'uuid';
+
     protected $fillable = [
         'uuid',
         'voter',
