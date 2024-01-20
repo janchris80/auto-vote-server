@@ -396,23 +396,23 @@ trait HelperTrait
     public function checkLimits($voter, $author, $permlink, $weight)
     {
         try {
-            $powerlimit = User::where('is_pause', 0)
+            $user = User::query()
+                ->where('is_pause', 0)
                 ->where('username', $voter)
-                ->select(['limit_upvote_mana', 'limit_downvote_mana'])
+                ->select(['limit_upvote_mana', 'limit_downvote_mana', 'is_enable', 'id'])
                 ->first();
 
-            if (!$powerlimit) {
-                return false;
-            }
-
             $powerLimitField = $weight < 0 ? 'limit_downvote_mana' : 'limit_upvote_mana';
-            $powerlimit = $powerlimit->$powerLimitField;
+            $powerlimit = $user->$powerLimitField;
 
             $account = $this->getAccounts($voter)->first();
 
             if (!$account || !isset($account['posting']['account_auths']) || !in_array(config('hive.account'), array_column($account['posting']['account_auths'], 0))) {
+                User::findOrFail($user->id)->update(['is_enable' => false]);
                 return false;
             }
+
+            User::findOrFail($user->id)->update(['is_enable' => true]);
 
             $getDynamicglobalProperties = $this->getDynamicGlobalProperties();
             $tvfs = (int)str_replace('HIVE', '', $getDynamicglobalProperties['total_vesting_fund_hive']);
