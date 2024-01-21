@@ -162,7 +162,7 @@ class FollowerController extends Controller
                 "trailer_type" => $request->trailerType,
                 "voting_type" => $votingType,
                 "is_enable" => true,
-                "weight" => $request->weight ?? 10000, // to get the percent need to 10000 / 100 = 100%
+                "weight" => $request->weight ?? 5000, // to get the percent need to 5000 / 100 = 50%
             ]);
 
             if ($request->trailerType === 'upvote_comment') {
@@ -313,19 +313,39 @@ class FollowerController extends Controller
     {
         $username = $request->username;
         $trailerType = $request->trailerType;
+        $followers = collect();
 
-        $followers = Follower::query()
-            ->whereHas('user', function ($query) use ($username) {
-                return $query->where('username', $username);
-            })
-            ->with([
-                'follower' => function ($query) {
-                    return $query->select(['username', 'id']);
-                }
-            ])
-            ->where('trailer_type', $trailerType)
-            ->select(['id', 'user_id', 'follower_id', 'trailer_type', 'weight'])
-            ->get();
+        if ($trailerType === 'curation') {
+            $followers = UpvoteCurator::query()
+                ->where('author', $username)
+                ->get();
+        }
+
+        if ($trailerType === 'downvote') {
+            $followers = Downvote::query()
+                ->where('author', $username)
+                ->get();
+        }
+
+        if ($trailerType === 'upvote_post') {
+            $followers = UpvotePost::query()
+                ->where('author', $username)
+                ->get();
+        }
+
+        if ($trailerType === 'upvote_comment') {
+            $followers = UpvoteComment::query()
+                ->select([
+                    'author as voter',
+                    'commenter as author',
+                    'voter_weight',
+                    'is_enable',
+                    'voting_time',
+                    'voting_type',
+                ])
+                ->where('commenter', $username)
+                ->get();
+        }
 
         return GetUserFollowerResource::collection($followers);
     }
