@@ -12,6 +12,7 @@
         "laravel/sanctum": "^3.3",
         "laravel/tinker": "^2.8",
         "mahdiyari/hive-php": "^1.1",
+        "marvinlabs/laravel-discord-logger": "^1.4",
         "predis/predis": "^2.2"
     },
     "require-dev": {
