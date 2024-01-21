@@ -26,6 +26,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('broadcast:claim-rewards')->everyFifteenMinutes();
         $schedule->command('app:update-community-lists-command')->daily();
         $schedule->command('app:delay-voting')->everyMinute();
+        $schedule->command('generate:log-files')->twiceDaily();
     }
 
     /**
