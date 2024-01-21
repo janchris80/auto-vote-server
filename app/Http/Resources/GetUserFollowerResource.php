@@ -16,9 +16,10 @@ class GetUserFollowerResource extends JsonResource
     {
         return [
             "id"=> $this->id,
-            "username" => $this->follower->username,
-            "weight" => $this->weight,
-            "followerId" => $this->follower_id,
+            "username" => $this->voter,
+            "weight" => $this->voter_weight,
+            "votingType" => $this->voting_type,
+            "votingTime" => $this->voting_time,
         ];
     }
 }
