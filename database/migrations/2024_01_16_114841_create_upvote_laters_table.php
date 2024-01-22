@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('upvote_laters', function (Blueprint $table) {
-            $table->uuid();
+            $table->id();
             $table->string('author', 16);
             $table->string('voter', 16);
             $table->text('permlink');
